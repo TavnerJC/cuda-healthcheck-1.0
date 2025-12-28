@@ -1,33 +1,619 @@
-You are helping build a CUDA Healthcheck Tool for Databricks.
+## Project Context
+You are helping build a **CUDA Healthcheck Tool for Databricks**.
+- **Goal**: Detect CUDA version incompatibilities between developer environments and Databricks clusters before they cause production failures
+- **Stack**: Python 3.10+, Databricks, GitHub Actions, CodeRabbit
+- **Database**: Delta tables for CUDA breaking change logs
+- **Version**: 1.0.0
+- **Last Updated**: December 2024
 
-## Project Goal
-Detect CUDA version incompatibilities between developer environments and Databricks clusters before they cause production failures.
+---
 
-## Technology Stack
-- Language: Python 3.10+
-- Execution Context: Databricks clusters (GPU-enabled)
-- Integration: Databricks Connect (local dev)
-- Web UI: Flask/FastAPI for Databricks web interface
-- CI/CD: GitHub Actions + CodeRabbit for code reviews
-- Infrastructure: Databricks Unity Catalog, custom containers
+## File Structure Standards
 
-## Key Patterns
-- All CUDA detection uses: nvidia-smi, nvcc, torch.cuda, tensorflow checks
-- All code must work in Databricks clusters (no local storage APIs)
-- Database: Maintain CUDA breaking change logs in Delta tables
-- Dependency management: Use Renovate for automated version tracking
+### Core Organization
+```
+cuda-healthcheck-1.0/
+├── src/
+│   ├── __init__.py                 # Package root
+│   ├── cuda_detector/
+│   │   ├── __init__.py             # Exports: CudaDetector
+│   │   └── detector.py             # Core detection logic
+│   ├── healthcheck/
+│   │   ├── __init__.py             # Exports: HealthcheckOrchestrator
+│   │   └── orchestrator.py         # Health check orchestration
+│   ├── data/
+│   │   ├── __init__.py             # Exports: BREAKING_CHANGES
+│   │   └── breaking_changes.py     # CUDA breaking change definitions
+│   ├── databricks_api/
+│   │   ├── __init__.py             # Exports: DatabricksConnector
+│   │   └── connector.py            # Databricks integration
+│   └── databricks/
+│       ├── __init__.py             # Exports: DatabricksHealthchecker, is_databricks_environment
+│       └── databricks_integration.py# Wrapper for Databricks notebooks
+├── tests/
+│   ├── conftest.py                 # pytest fixtures and mocks
+│   ├── test_detector.py            # CudaDetector tests
+│   ├── test_orchestrator.py        # HealthcheckOrchestrator tests
+│   └── databricks/
+│       ├── __init__.py
+│       ├── test_databricks_integration.py
+│       └── test_databricks_connector.py
+├── notebooks/
+│   ├── healthcheck_runner.py       # Main Databricks notebook
+│   └── setup.py                    # Databricks cluster setup
+├── .github/workflows/
+│   ├── test.yml                    # Runs on CUDA 12.4, 12.6, 13.0
+│   └── databricks-test.yml         # Databricks-specific tests
+├── docs/
+│   ├── DATABRICKS_INTEGRATION.md   # Databricks usage guide
+│   ├── MIGRATION_GUIDE.md          # Version migration documentation
+│   └── DEPRECATION_LOG.md          # CUDA deprecation tracking
+└── .cursorrules                    # This file
+```
 
-## Code Organization
-- src/cuda_detector/ - Core detection logic
-- src/healthcheck/ - Health check orchestration
-- src/databricks_api/ - Databricks integration
-- tests/ - Unit tests using pytest
-- .github/workflows/ - GitHub Actions for CI/CD
-- docs/ - Migration guides, deprecation logs
+### Package Standards
+- **All directories must have `__init__.py`** - Required for Python imports
+- **Each module should export key classes via `__init__.py`** - Clean, discoverable imports
+- **Databricks-specific code in separate `databricks/` subdirectory** - Keep concerns separated
+- **Mocking support for `dbutils`** - All code works locally + in Databricks
+
+---
+
+## Class Naming Conventions
+
+### Detector Classes
+- **Name**: `CudaDetector` (not `CudaVersionDetector`)
+- **Location**: `src/cuda_detector/detector.py`
+- **Purpose**: Detects CUDA environment (nvidia-smi, nvcc, torch.cuda, tensorflow)
+- **Methods**:
+  - `detect_cuda_version() -> str`
+  - `detect_cuda_driver() -> str`
+  - `detect_nvcc_version() -> str`
+  - `detect_cuda_toolkits() -> dict`
+
+### Orchestrator Classes
+- **Name**: `HealthcheckOrchestrator`
+- **Location**: `src/healthcheck/orchestrator.py`
+- **Purpose**: Orchestrates health check workflow
+- **Methods**:
+  - `check_compatibility(local_version, cluster_version) -> dict`
+  - `analyze_breaking_changes() -> list`
+  - `generate_report() -> dict`
+
+### Databricks Wrapper Classes
+- **Name**: `DatabricksHealthchecker`
+- **Location**: `src/databricks/databricks_integration.py`
+- **Purpose**: Wraps healthcheck for Databricks notebooks
+- **Methods**:
+  - `get_cluster_cuda_version() -> str`
+  - `run_healthcheck() -> dict`
+  - `export_results_to_delta(table_path) -> bool`
+  - `get_cluster_metadata() -> dict`
+
+### Databricks Integration Classes
+- **Name**: `DatabricksConnector`
+- **Location**: `src/databricks_api/connector.py`
+- **Purpose**: Low-level Databricks API interaction
+- **Methods**:
+  - `get_cluster_info() -> dict`
+  - `get_spark_config() -> dict`
+  - `read_delta_table(path) -> DataFrame`
+  - `write_delta_table(path, data) -> None`
+
+### Factory & Utility Functions
+- **Name**: `is_databricks_environment() -> bool`
+- **Name**: `get_healthchecker() -> HealthcheckOrchestrator | DatabricksHealthchecker`
+- **Name**: `create_mock_dbutils() -> MockDbutils`
+
+---
+
+## Import Standards
+
+### Absolute Imports (Always use these)
+```python
+# ✅ CORRECT
+from src.cuda_detector import CudaDetector
+from src.healthcheck import HealthcheckOrchestrator
+from src.databricks import DatabricksHealthchecker, is_databricks_environment
+from src.data import BREAKING_CHANGES
+
+# ❌ NEVER USE RELATIVE IMPORTS
+from .detector import CudaDetector  # Don't do this
+import sys; sys.path.insert(0, ...)  # Don't do this
+```
+
+### Clean Exports from `__init__.py`
+```python
+# src/cuda_detector/__init__.py
+from .detector import CudaDetector
+
+__all__ = ['CudaDetector']
+__version__ = '1.0.0'
+```
+
+### Optional Databricks Imports (Graceful Fallback)
+```python
+# src/databricks/__init__.py
+try:
+    from .databricks_integration import DatabricksHealthchecker
+    HAS_DATABRICKS = True
+except ImportError:
+    HAS_DATABRICKS = False
+    DatabricksHealthchecker = None
+
+def is_databricks_environment() -> bool:
+    """Check if running in Databricks environment."""
+    try:
+        import dbutils
+        return True
+    except (ImportError, NameError):
+        return False
+
+__all__ = ['DatabricksHealthchecker', 'is_databricks_environment']
+```
+
+### dbutils Import Pattern (Fallback for local testing)
+```python
+# Safe import pattern used throughout codebase
+try:
+    # Existing dbutils in Databricks
+    dbutils = dbutils  # type: ignore
+except NameError:
+    # Mock for local development
+    from unittest.mock import MagicMock
+    dbutils = MagicMock()
+```
+
+---
+
+## Testing Standards
+
+### Test Organization
+- **Unit tests**: `tests/` folder - Test individual components
+- **Databricks tests**: `tests/databricks/` - Test Databricks integration
+- **Fixtures**: `tests/conftest.py` - Shared fixtures and mocks
+- **Mocks**: `tests/mocks/` - Mock implementations
+
+### Test Requirements
+1. **Mock `dbutils` for local testing** - Never use real Databricks in unit tests
+2. **Test against CUDA versions**: 12.4, 12.6, 13.0
+3. **Use pytest fixtures** - Reusable mocks and setup
+4. **Parametrized tests** - Test multiple CUDA versions in single test
+5. **Coverage minimum**: 80% for core modules, 70% for databricks
+
+### Mock Fixtures Pattern
+```python
+# tests/conftest.py
+import pytest
+from unittest.mock import MagicMock
+
+@pytest.fixture
+def mock_dbutils():
+    """Provides mock dbutils for local testing."""
+    dbutils = MagicMock()
+    dbutils.notebook.run = MagicMock(return_value="success")
+    dbutils.fs.ls = MagicMock(return_value=[])
+    dbutils.fs.put = MagicMock()
+    dbutils.jobs.runNow = MagicMock()
+    return dbutils
+
+@pytest.fixture(params=['12.4', '12.6', '13.0'])
+def cuda_versions(request):
+    """Parameterized CUDA versions for testing."""
+    return request.param
+```
+
+### Databricks-Specific Test Pattern
+```python
+# tests/databricks/test_databricks_integration.py
+def test_healthcheck_in_databricks(mock_dbutils, cuda_versions):
+    """Test healthcheck with mocked Databricks."""
+    checker = DatabricksHealthchecker(mock_dbutils)
+    result = checker.run_healthcheck()
+    assert result['status'] in ['COMPATIBLE', 'INCOMPATIBLE']
+    assert 'breaking_changes' in result
+```
+
+---
+
+## CUDA Detection Standards
+
+### Detection Methods (Priority Order)
+1. **nvidia-smi** - `nvidia-smi --query-gpu=driver_version --format=csv,noheader`
+2. **nvcc** - `nvcc --version | grep -oP '(?<=V)\d+\.\d+'`
+3. **torch.cuda** - `torch.cuda.get_device_name(0)`, `torch.version.cuda`
+4. **tensorflow** - `tensorflow.sysconfig.get_build_info()['cuda_version']`
+5. **Cluster metadata** - Databricks cluster configurations
+
+### Breaking Changes Detection
+- Store in Delta table: `dbfs:/mnt/cuda-breaking-changes/changes.delta`
+- Track by version: `{from_version: '12.4', to_version: '12.6', changes: [...]}`
+- Update in docs: `docs/DEPRECATION_LOG.md`
+
+### Delta Table Schema
+```python
+# Breaking changes Delta table schema
+breaking_changes_schema = {
+    'id': 'STRING',                    # Unique change identifier
+    'title': 'STRING',                 # Short description
+    'severity': 'STRING',              # CRITICAL, WARNING, INFO
+    'affected_library': 'STRING',      # pytorch, tensorflow, cudf, etc.
+    'cuda_version_from': 'STRING',     # Source CUDA version
+    'cuda_version_to': 'STRING',       # Target CUDA version
+    'description': 'STRING',           # Detailed description
+    'affected_apis': 'ARRAY<STRING>',  # List of affected APIs
+    'migration_path': 'STRING',        # Migration instructions
+    'references': 'ARRAY<STRING>',     # Documentation links
+    'applies_to_compute_capabilities': 'ARRAY<STRING>',  # GPU compute caps
+    'timestamp': 'TIMESTAMP',          # When recorded
+}
+```
+
+### Supported CUDA Versions
+- **12.4** - Current stable (testing primary)
+- **12.6** - Recent release (testing secondary)
+- **13.0** - Latest release (testing tertiary)
+
+---
+
+## CI/CD Standards
+
+### GitHub Actions Workflow
+- **Trigger**: Push to main, PRs
+- **Matrix testing**: CUDA 12.4, 12.6, 13.0
+- **Steps**:
+  1. Run unit tests (`pytest tests/ -v`)
+  2. Check imports (`python -c "from src.databricks import DatabricksHealthchecker"`)
+  3. Lint code (`flake8 src/`)
+  4. Type check (`mypy src/`)
+  5. Code review via CodeRabbit
+
+### Local Testing Before Push
+```bash
+# Run all tests
+pytest tests/ -v --cov=src --cov-report=html
+
+# Test specific CUDA version
+pytest tests/ -v -k "cuda_12_4"
+
+# Test Databricks integration
+pytest tests/databricks/ -v
+
+# Check imports work
+python -c "from src.databricks import DatabricksHealthchecker; print('✅')"
+```
+
+---
 
 ## Development Workflow
-1. Develop locally with Databricks Connect to test on actual clusters
-2. Use CodeRabbit for automated PR reviews
-3. GitHub Actions runs compatibility tests on CUDA 12.4, 12.6, 13.0
-4. All code must be tested against 3+ CUDA versions
+
+### Before Writing Code
+1. **Check existing patterns** - Use `@` in Cursor to reference similar files
+2. **Plan structure** - Where does the class/function belong?
+3. **Update .cursorrules** - If adding new patterns
+
+### During Development
+1. **Write imports first** - Define `__init__.py` exports before implementation
+2. **Add type hints** - All parameters and return types
+3. **Write docstrings** - Module, class, and method docstrings
+4. **Mock Databricks** - Never hardcode cluster-specific code
+
+### After Development
+1. **Run tests** - `pytest tests/ -v`
+2. **Test locally** - Use Databricks Connect
+3. **Push with PR** - CodeRabbit will review automatically
+4. **Verify CI/CD** - All checks pass
+
+---
+
+## Documentation Standards
+
+### Required Documentation
+- **README.md** - Project overview with Databricks section
+- **DATABRICKS_INTEGRATION.md** - How to use in Databricks
+- **MIGRATION_GUIDE.md** - CUDA version upgrade instructions
+- **DEPRECATION_LOG.md** - CUDA breaking changes by version
+- **API_REFERENCE.md** - Class/method documentation
+
+### Documentation Patterns
+```markdown
+### Class: CudaDetector
+
+**Purpose**: Detects CUDA version across multiple detection methods
+
+**Location**: `src/cuda_detector/detector.py`
+
+**Example**:
+\`\`\`python
+detector = CudaDetector()
+version = detector.detect_cuda_version()
+print(version)  # "12.6"
+\`\`\`
+
+**Methods**:
+- `detect_cuda_version() -> str` - Primary detection method
+- `detect_cuda_driver() -> str` - NVIDIA driver version
+```
+
+---
+
+## Environment Variables
+
+### Required for Databricks Integration
+- `DATABRICKS_HOST` - Workspace URL (e.g., `https://dbc-xxxxx.cloud.databricks.com`)
+- `DATABRICKS_TOKEN` - Personal Access Token for authentication
+- `DATABRICKS_WAREHOUSE_ID` - SQL Warehouse ID for Delta operations (optional)
+
+### Optional Configuration
+- `CUDA_HEALTHCHECK_LOG_LEVEL` - Logging level (DEBUG, INFO, WARNING, ERROR)
+- `CUDA_HEALTHCHECK_RETRY_ATTEMPTS` - Number of retry attempts for API calls (default: 3)
+- `CUDA_HEALTHCHECK_TIMEOUT` - Timeout in seconds for operations (default: 300)
+
+### Local Development Setup
+```bash
+# .env file example
+DATABRICKS_HOST=https://dbc-xxxxx.cloud.databricks.com
+DATABRICKS_TOKEN=dapi1234567890abcdef
+DATABRICKS_WAREHOUSE_ID=abc123def456
+CUDA_HEALTHCHECK_LOG_LEVEL=DEBUG
+```
+
+---
+
+## Logging Standards
+
+### Logger Configuration
+```python
+# src/utils/logging_config.py
+import logging
+import os
+
+def get_logger(name: str) -> logging.Logger:
+    """Get configured logger for module."""
+    logger = logging.getLogger(name)
+    level = os.getenv('CUDA_HEALTHCHECK_LOG_LEVEL', 'INFO')
+    logger.setLevel(getattr(logging, level))
+    
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+    
+    return logger
+```
+
+### Usage in Modules
+```python
+from src.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
+
+logger.info("Starting CUDA detection...")
+logger.warning("CUDA 13.x detected - check compatibility")
+logger.error("nvidia-smi failed", exc_info=True)
+```
+
+### Log Levels by Component
+- **CudaDetector**: INFO for detection results, DEBUG for command outputs
+- **HealthcheckOrchestrator**: INFO for workflow steps, WARNING for compatibility issues
+- **DatabricksHealthchecker**: INFO for cluster operations, ERROR for failures
+- **DatabricksConnector**: DEBUG for API calls, ERROR for connection issues
+
+---
+
+## Error Handling Patterns
+
+### Common Error Scenarios
+```python
+# Retry pattern for API calls
+from typing import Callable, TypeVar, Optional
+import time
+
+T = TypeVar('T')
+
+def retry_on_failure(
+    func: Callable[..., T],
+    max_attempts: int = 3,
+    delay: float = 1.0,
+    backoff: float = 2.0,
+    exceptions: tuple = (Exception,)
+) -> Optional[T]:
+    """Retry function on failure with exponential backoff."""
+    attempt = 0
+    current_delay = delay
+    
+    while attempt < max_attempts:
+        try:
+            return func()
+        except exceptions as e:
+            attempt += 1
+            if attempt >= max_attempts:
+                logger.error(f"Failed after {max_attempts} attempts: {e}")
+                raise
+            logger.warning(f"Attempt {attempt} failed, retrying in {current_delay}s: {e}")
+            time.sleep(current_delay)
+            current_delay *= backoff
+```
+
+### Databricks-Specific Errors
+```python
+class DatabricksConnectionError(Exception):
+    """Raised when cannot connect to Databricks."""
+    pass
+
+class ClusterNotRunningError(Exception):
+    """Raised when cluster is not in RUNNING state."""
+    pass
+
+class CudaDetectionError(Exception):
+    """Raised when CUDA detection fails."""
+    pass
+```
+
+---
+
+## Security Considerations
+
+### Credential Management
+- **Never commit credentials** - Use environment variables or secret managers
+- **Use Databricks Secrets** - Store tokens in Databricks secret scopes
+```python
+# In Databricks notebooks
+token = dbutils.secrets.get(scope="cuda-healthcheck", key="databricks-token")
+```
+- **Rotate tokens regularly** - Implement token rotation policy
+- **Use service principals** - Prefer service principals over personal tokens in production
+
+### Delta Table Access Control
+```python
+# Grant appropriate permissions
+GRANT SELECT, MODIFY ON TABLE main.cuda_healthcheck.healthcheck_results 
+TO SERVICE_PRINCIPAL 'cuda-healthcheck-sp';
+```
+
+---
+
+## Performance Guidelines
+
+### Batch Processing for Multiple GPUs
+```python
+# Detect all GPUs in parallel
+from concurrent.futures import ThreadPoolExecutor
+
+def detect_all_gpus_parallel(max_workers: int = 4) -> List[GPUInfo]:
+    """Detect multiple GPUs in parallel."""
+    detector = CUDADetector()
+    nvidia_info = detector.detect_nvidia_smi()
+    gpu_count = len(nvidia_info.get('gpus', []))
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Process GPU info in parallel
+        futures = [executor.submit(process_gpu, i) for i in range(gpu_count)]
+        return [f.result() for f in futures]
+```
+
+### Caching Strategies
+```python
+from functools import lru_cache
+from datetime import datetime, timedelta
+
+class CachedDetector:
+    """CUDA detector with caching for repeated checks."""
+    
+    def __init__(self, cache_ttl: int = 300):  # 5 minutes default
+        self.cache_ttl = cache_ttl
+        self._cache = {}
+        self._cache_time = {}
+    
+    @lru_cache(maxsize=128)
+    def detect_cuda_version_cached(self) -> str:
+        """Cached CUDA version detection."""
+        return self._detector.detect_cuda_version()
+```
+
+---
+
+## Code Quality Checklist
+
+When generating new code, ensure:
+- [ ] Type hints on all functions (`def foo(x: int) -> str:`)
+- [ ] Docstrings on all modules, classes, methods
+- [ ] Error handling with specific exception types
+- [ ] Logging for debugging (`logger.info()`, `logger.error()`)
+- [ ] No hardcoded paths (use config or environment variables)
+- [ ] Works in both Databricks and local environments
+- [ ] Tests cover success and failure cases
+- [ ] Follows naming conventions in "Class Naming Conventions" section
+- [ ] Imports are absolute, clean, and properly exported
+- [ ] Retry logic for external API calls
+- [ ] Proper credential handling (no hardcoded secrets)
+
+---
+
+## Cursor-Specific Commands
+
+### Reference Files in Prompts
+```
+Look at @src/cuda_detector/detector.py and create matching __init__.py
+```
+
+### Request Code Generation
+```
+Generate a unit test for the CudaDetector.detect_cuda_version() method
+```
+
+### Ask for Pattern Examples
+```
+Show me an example of how to mock dbutils in a pytest fixture
+```
+
+### Improve Existing Code
+```
+Add comprehensive error handling and type hints to this function
+```
+
+---
+
+## Example Prompts to Use with Cursor
+
+### Prompt: Create Package Structure
+```
+Create all missing __init__.py files for the CUDA Healthcheck project.
+Reference: .cursorrules for class names and export patterns.
+Each __init__.py should:
+1. Import and re-export main classes
+2. Include module docstring
+3. Follow patterns in "Import Standards" section
+4. Set __all__ variable
+5. Include __version__ if applicable
+```
+
+### Prompt: Add Databricks Integration
+```
+Create src/databricks/databricks_integration.py with DatabricksHealthchecker class.
+Requirements from .cursorrules:
+- Handle dbutils safely (fallback to mock)
+- Implement methods: get_cluster_cuda_version(), run_healthcheck(), export_results_to_delta()
+- Use type hints throughout
+- Add comprehensive docstrings with examples
+- Work in both Databricks notebooks and local dev
+```
+
+### Prompt: Create Tests
+```
+Create tests/databricks/test_databricks_integration.py using .cursorrules patterns:
+- Use pytest fixtures from tests/conftest.py
+- Mock dbutils (don't use real Databricks)
+- Test against CUDA versions: 12.4, 12.6, 13.0
+- Use parametrized tests
+- Include setup instructions
+```
+
+---
+
+## When to Update .cursorrules
+
+Update this file when:
+- Adding new package/module (update File Structure)
+- Introducing new class pattern (update Class Naming)
+- Changing import strategy (update Import Standards)
+- Adding new testing framework (update Testing Standards)
+- New CUDA version support (update CUDA Detection Standards)
+
+---
+
+## Quick Reference
+
+| Need | Location | Example |
+|------|----------|---------|
+| Detect CUDA | `src/cuda_detector/detector.py` | `CudaDetector().detect_cuda_version()` |
+| Check Compatibility | `src/healthcheck/orchestrator.py` | `HealthcheckOrchestrator().check_compatibility(local, cluster)` |
+| Use in Databricks | `src/databricks/databricks_integration.py` | `DatabricksHealthchecker().run_healthcheck()` |
+| Test Locally | `tests/conftest.py` | Use `mock_dbutils` fixture |
+| Test Databricks | `tests/databricks/` | Use parameterized CUDA versions |
+| Document | `docs/DATABRICKS_INTEGRATION.md` | Update with new features |
+| CI/CD | `.github/workflows/` | Runs on 12.4, 12.6, 13.0 |
 

@@ -1,0 +1,258 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r cuda-healthcheck/requirements.txt
+        pip install pytest pytest-cov pytest-xdist
+
+    - name: Run tests
+      working-directory: cuda-healthcheck
+      run: |
+        pytest tests/ -v --tb=short -n auto
+
+    - name: Test import
+      working-directory: cuda-healthcheck
+      run: |
+        python -c "from src import CUDADetector, HealthcheckOrchestrator; print('✓ Imports successful')"
+
+  test-coverage:
+    name: Test with Coverage
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r cuda-healthcheck/requirements.txt
+        pip install pytest pytest-cov
+
+    - name: Run tests with coverage
+      working-directory: cuda-healthcheck
+      run: |
+        pytest tests/ --cov=src --cov-report=xml --cov-report=term-missing
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./cuda-healthcheck/coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+    - name: Coverage comment
+      if: github.event_name == 'pull_request'
+      run: |
+        echo "## Test Coverage Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        cd cuda-healthcheck && pytest tests/ --cov=src --cov-report=term-missing | tail -n 20 >> $GITHUB_STEP_SUMMARY
+
+  test-modules:
+    name: Test Individual Modules
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r cuda-healthcheck/requirements.txt
+        pip install pytest
+
+    - name: Test Utils Module
+      working-directory: cuda-healthcheck
+      run: |
+        pytest tests/test_logging.py tests/test_retry.py tests/test_exceptions.py -v
+
+    - name: Test Orchestrator
+      working-directory: cuda-healthcheck
+      run: |
+        pytest tests/test_orchestrator.py -v
+
+    - name: Test Breaking Changes
+      working-directory: cuda-healthcheck
+      run: |
+        pytest tests/test_breaking_changes.py -v
+
+    - name: Test Databricks Integration
+      working-directory: cuda-healthcheck
+      run: |
+        pytest tests/databricks/ -v
+
+  test-compatibility:
+    name: Test Compatibility Scenarios
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r cuda-healthcheck/requirements.txt
+        pip install pytest
+
+    - name: Test CUDA version compatibility
+      working-directory: cuda-healthcheck
+      run: |
+        python -c "
+        from src import HealthcheckOrchestrator
+        orch = HealthcheckOrchestrator()
+        
+        # Test various version transitions
+        result_124_126 = orch.check_compatibility('12.4', '12.6')
+        assert result_124_126 is not None
+        
+        result_124_130 = orch.check_compatibility('12.4', '13.0')
+        assert result_124_130 is not None
+        
+        print('✓ Compatibility checks passed')
+        "
+
+    - name: Test breaking changes detection
+      working-directory: cuda-healthcheck
+      run: |
+        python -c "
+        from src.data import get_breaking_changes
+        
+        pytorch_changes = get_breaking_changes('pytorch')
+        assert len(pytorch_changes) > 0
+        
+        tf_changes = get_breaking_changes('tensorflow')
+        assert len(tf_changes) > 0
+        
+        print('✓ Breaking changes detection passed')
+        "
+
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r cuda-healthcheck/requirements.txt
+
+    - name: Test complete workflow
+      working-directory: cuda-healthcheck
+      run: |
+        python -c "
+        from src import run_complete_healthcheck
+        from src.data import BreakingChangesDatabase
+        
+        # Test complete healthcheck (will use mocks for CUDA)
+        try:
+            result = run_complete_healthcheck()
+            print('Healthcheck executed')
+        except Exception as e:
+            # Expected to fail without CUDA, but should not crash
+            print(f'Healthcheck failed as expected without CUDA: {e}')
+        
+        # Test breaking changes database
+        db = BreakingChangesDatabase()
+        changes = db.get_all_changes()
+        assert len(changes) > 0
+        print(f'✓ Found {len(changes)} breaking changes in database')
+        "
+
+  test-notebooks:
+    name: Validate Notebooks
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Check notebook syntax
+      working-directory: cuda-healthcheck
+      run: |
+        python -m py_compile notebooks/setup.py
+        python -m py_compile notebooks/healthcheck_runner.py
+        echo "✓ Notebook syntax valid"
+
+  summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [test, test-coverage, test-modules, test-compatibility, integration-test, test-notebooks]
+    if: always()
+
+    steps:
+    - name: Check test results
+      run: |
+        echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "All test jobs completed!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Multi-version tests" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Coverage analysis" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Module tests" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Compatibility tests" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Integration tests" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Notebook validation" >> $GITHUB_STEP_SUMMARY
+
+

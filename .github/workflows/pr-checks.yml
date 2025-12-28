@@ -1,0 +1,204 @@
+name: PR Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  pr-info:
+    name: PR Information
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: PR Details
+      run: |
+        echo "## Pull Request Information" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Title**: ${{ github.event.pull_request.title }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Author**: @${{ github.event.pull_request.user.login }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Branch**: \`${{ github.head_ref }}\` → \`${{ github.base_ref }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Files Changed**: ${{ github.event.pull_request.changed_files }}" >> $GITHUB_STEP_SUMMARY
+
+  quick-test:
+    name: Quick Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r cuda-healthcheck/requirements.txt
+        pip install pytest
+
+    - name: Run quick tests
+      working-directory: cuda-healthcheck
+      run: |
+        # Run a subset of fast tests
+        pytest tests/test_exceptions.py tests/test_logging.py -v --tb=short
+
+  changed-files:
+    name: Check Changed Files
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Get changed files
+      id: changed-files
+      uses: tj-actions/changed-files@v41
+      with:
+        files: |
+          cuda-healthcheck/src/**
+          cuda-healthcheck/tests/**
+
+    - name: List changed files
+      if: steps.changed-files.outputs.any_changed == 'true'
+      run: |
+        echo "## Changed Files" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "The following files were changed:" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+          echo "- \`$file\`" >> $GITHUB_STEP_SUMMARY
+        done
+
+    - name: Check if tests added
+      if: steps.changed-files.outputs.any_changed == 'true'
+      run: |
+        if echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -q "tests/"; then
+          echo "✓ Tests were added/modified" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚠️ No test changes detected" >> $GITHUB_STEP_SUMMARY
+        fi
+
+  check-requirements:
+    name: Check Requirements
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Check requirements.txt
+      working-directory: cuda-healthcheck
+      run: |
+        if [ -f requirements.txt ]; then
+          echo "## Requirements" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          cat requirements.txt >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Check for new dependencies
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Analyze dependencies
+      working-directory: cuda-healthcheck
+      run: |
+        pip install pipdeptree
+        pip install -r requirements.txt
+        echo "## Dependency Tree" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        pipdeptree --warn silence | head -30 >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  size-check:
+    name: PR Size Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Check PR size
+      run: |
+        ADDITIONS=$(git diff --shortstat origin/${{ github.base_ref }}...HEAD | grep -oP '\d+(?= insertions)')
+        DELETIONS=$(git diff --shortstat origin/${{ github.base_ref }}...HEAD | grep -oP '\d+(?= deletions)') || DELETIONS=0
+        TOTAL=$((ADDITIONS + DELETIONS))
+        
+        echo "## PR Size" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Additions**: +$ADDITIONS" >> $GITHUB_STEP_SUMMARY
+        echo "- **Deletions**: -$DELETIONS" >> $GITHUB_STEP_SUMMARY
+        echo "- **Total Changes**: $TOTAL" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ $TOTAL -gt 1000 ]; then
+          echo "⚠️ **Large PR**: Consider splitting into smaller PRs" >> $GITHUB_STEP_SUMMARY
+        elif [ $TOTAL -gt 500 ]; then
+          echo "📝 **Medium PR**: Review carefully" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "✓ **Small PR**: Good size for review" >> $GITHUB_STEP_SUMMARY
+        fi
+
+  pr-checklist:
+    name: PR Checklist
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Create checklist
+      run: |
+        echo "## PR Checklist" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Please ensure:" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- [ ] Tests pass locally" >> $GITHUB_STEP_SUMMARY
+        echo "- [ ] New tests added for new features" >> $GITHUB_STEP_SUMMARY
+        echo "- [ ] Documentation updated" >> $GITHUB_STEP_SUMMARY
+        echo "- [ ] No linter errors" >> $GITHUB_STEP_SUMMARY
+        echo "- [ ] Breaking changes documented" >> $GITHUB_STEP_SUMMARY
+        echo "- [ ] Follows .cursorrules standards" >> $GITHUB_STEP_SUMMARY
+
+  label-pr:
+    name: Auto Label
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Label based on files
+      uses: actions/labeler@v5
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        configuration-path: .github/labeler.yml
+        sync-labels: true
+
+  pr-summary:
+    name: PR Check Summary
+    runs-on: ubuntu-latest
+    needs: [pr-info, quick-test, changed-files, check-requirements, size-check, pr-checklist]
+    if: always()
+    
+    steps:
+    - name: Summary
+      run: |
+        echo "## PR Checks Complete ✅" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "All automated PR checks have been completed." >> $GITHUB_STEP_SUMMARY
+        echo "Please review the results above before merging." >> $GITHUB_STEP_SUMMARY
+
+

@@ -1,104 +1,224 @@
-name: CUDA Compatibility Tests
+name: Weekly CUDA Compatibility Matrix
+
+# This workflow runs comprehensive CUDA version testing weekly
+# Complements daily tests with extended matrix testing
 
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
   schedule:
-    # Run weekly to catch new compatibility issues
+    # Run weekly on Sunday at midnight UTC
     - cron: '0 0 * * 0'
+  workflow_dispatch:
 
 jobs:
-  test-cuda-versions:
-    name: Test on CUDA ${{ matrix.cuda-version }}
+  cuda-matrix-test:
+    name: CUDA ${{ matrix.cuda-version }} + Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         cuda-version: ['12.4', '12.6', '13.0']
-        python-version: ['3.10', '3.11']
+        python-version: ['3.10', '3.11', '3.12']
     
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
     
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
+        cache: 'pip'
     
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install -r cuda-healthcheck/requirements.txt
         pip install pytest pytest-cov
     
-    - name: Run unit tests
+    - name: Test CUDA version detection
+      working-directory: cuda-healthcheck
       run: |
-        pytest tests/ -v --cov=src --cov-report=xml
+        python -c "
+        from src.data import get_breaking_changes
+        
+        # Validate breaking changes for this CUDA version
+        changes = get_breaking_changes()
+        cuda_changes = [c for c in changes if '${{ matrix.cuda-version }}' in str(c.affected_versions)]
+        print(f'Found {len(cuda_changes)} changes for CUDA ${{ matrix.cuda-version }}')
+        "
     
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+    - name: Run compatibility tests
+      working-directory: cuda-healthcheck
+      run: |
+        pytest tests/ -v --cov=src --cov-report=xml -k "compatibility or breaking"
+    
+    - name: Upload coverage
+      uses: codecov/codecov-action@v4
       with:
-        file: ./coverage.xml
-        flags: cuda-${{ matrix.cuda-version }}
-        name: cuda-${{ matrix.cuda-version }}-python-${{ matrix.python-version }}
+        file: ./cuda-healthcheck/coverage.xml
+        flags: cuda-${{ matrix.cuda-version }}-python-${{ matrix.python-version }}
+        fail_ci_if_error: false
 
-  lint:
-    name: Code Quality
+  breaking-changes-validation:
+    name: Validate Breaking Changes Database
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
-    
-    - name: Install linting tools
-      run: |
-        python -m pip install --upgrade pip
-        pip install black flake8 mypy
-    
-    - name: Run black
-      run: black --check src/ tests/ --line-length=100
-    
-    - name: Run flake8
-      run: flake8 src/ tests/ --max-line-length=100
-    
-    - name: Run mypy
-      run: mypy src/ --ignore-missing-imports
-
-  integration-test:
-    name: Integration Test with Databricks
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
+        cache: 'pip'
     
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install -r cuda-healthcheck/requirements.txt
     
-    - name: Run breaking changes export
+    - name: Validate breaking changes data
+      working-directory: cuda-healthcheck
       run: |
-        python main.py export --output test-changes.json
-        test -f test-changes.json
+        python -c "
+        from src.data import BreakingChangesDatabase, get_breaking_changes
+        
+        db = BreakingChangesDatabase()
+        all_changes = db.get_all_changes()
+        
+        print(f'Total breaking changes: {len(all_changes)}')
+        
+        # Validate by CUDA version
+        for version in ['12.4', '12.6', '13.0']:
+            changes = db.get_changes_for_version(version)
+            print(f'CUDA {version}: {len(changes)} changes')
+        
+        # Validate by library
+        for lib in ['pytorch', 'tensorflow', 'cudf']:
+            changes = get_breaking_changes(library=lib)
+            print(f'{lib}: {len(changes)} changes')
+            assert len(changes) > 0, f'No changes found for {lib}'
+        
+        print('✓ Breaking changes database validated')
+        "
     
-    - name: Test Databricks connection (if secrets available)
-      if: env.DATABRICKS_HOST != ''
+    - name: Export breaking changes
+      working-directory: cuda-healthcheck
+      run: |
+        python -c "
+        from src.data import BreakingChangesDatabase
+        import json
+        
+        db = BreakingChangesDatabase()
+        exported = db.export_to_json()
+        
+        with open('breaking-changes-export.json', 'w') as f:
+            json.dump(exported, f, indent=2)
+        
+        print('✓ Breaking changes exported')
+        "
+    
+    - name: Upload export artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: breaking-changes-weekly
+        path: cuda-healthcheck/breaking-changes-export.json
+        retention-days: 30
+
+  integration-test:
+    name: Databricks Integration Test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r cuda-healthcheck/requirements.txt
+    
+    - name: Test Databricks modules
+      working-directory: cuda-healthcheck
+      run: |
+        python -c "
+        from src.databricks import DatabricksConnector, DatabricksHealthchecker
+        from src.databricks import is_databricks_environment
+        
+        # Test imports
+        print('✓ Databricks modules imported')
+        
+        # Test environment detection
+        is_db = is_databricks_environment()
+        print(f'Is Databricks environment: {is_db}')
+        "
+    
+    - name: Test Databricks connection (with secrets)
+      if: ${{ secrets.DATABRICKS_HOST != '' }}
+      working-directory: cuda-healthcheck
       env:
         DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
         DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
       run: |
-        python -c "from src.databricks_api import ClusterScanner; scanner = ClusterScanner(); print('Connection successful')"
+        python -c "
+        from src.databricks import DatabricksConnector
+        import os
+        
+        if os.getenv('DATABRICKS_HOST'):
+            try:
+                connector = DatabricksConnector()
+                print('✓ Databricks connector initialized')
+            except Exception as e:
+                print(f'⚠️ Connection not available: {e}')
+        else:
+            print('⚠️ No Databricks credentials provided')
+        "
+
+  weekly-summary:
+    name: Weekly Test Summary
+    runs-on: ubuntu-latest
+    needs: [cuda-matrix-test, breaking-changes-validation]
+    if: always()
+    
+    steps:
+    - name: Generate summary
+      run: |
+        echo "## Weekly CUDA Compatibility Test Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Date**: $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Matrix Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ needs.cuda-matrix-test.result }}" == "success" ]; then
+          echo "✅ All CUDA version combinations passed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Some CUDA version combinations failed" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Breaking Changes Validation" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ needs.breaking-changes-validation.result }}" == "success" ]; then
+          echo "✅ Breaking changes database validated" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Breaking changes validation failed" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Tested Versions**:" >> $GITHUB_STEP_SUMMARY
+        echo "- CUDA: 12.4, 12.6, 13.0" >> $GITHUB_STEP_SUMMARY
+        echo "- Python: 3.10, 3.11, 3.12" >> $GITHUB_STEP_SUMMARY
+        echo "- Total combinations: 9" >> $GITHUB_STEP_SUMMARY
 
 
 

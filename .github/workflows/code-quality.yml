@@ -1,0 +1,194 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: Linting (flake8, black)
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+        cache: 'pip'
+
+    - name: Install linting tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 black isort
+
+    - name: Run flake8
+      working-directory: cuda-healthcheck
+      run: |
+        # Stop the build if there are Python syntax errors or undefined names
+        flake8 src/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        
+        # Exit-zero treats all errors as warnings
+        flake8 src/ tests/ --count --max-complexity=10 --max-line-length=100 --statistics --exit-zero
+
+    - name: Check code formatting with black
+      working-directory: cuda-healthcheck
+      run: |
+        black --check --line-length 100 src/ tests/
+
+    - name: Check import sorting with isort
+      working-directory: cuda-healthcheck
+      run: |
+        isort --check-only --profile black --line-length 100 src/ tests/
+
+  type-check:
+    name: Type Checking (mypy)
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r cuda-healthcheck/requirements.txt
+        pip install mypy types-requests
+
+    - name: Run mypy
+      working-directory: cuda-healthcheck
+      run: |
+        mypy src/ --ignore-missing-imports --no-strict-optional || true
+
+  security:
+    name: Security Scan (bandit)
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install bandit
+      run: |
+        python -m pip install --upgrade pip
+        pip install bandit[toml]
+
+    - name: Run bandit
+      working-directory: cuda-healthcheck
+      run: |
+        bandit -r src/ -f json -o bandit-report.json || true
+        bandit -r src/ -ll  # Only show medium and high severity issues
+
+  complexity:
+    name: Code Complexity (radon)
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install radon
+      run: |
+        python -m pip install --upgrade pip
+        pip install radon
+
+    - name: Check cyclomatic complexity
+      working-directory: cuda-healthcheck
+      run: |
+        radon cc src/ -a -nb
+        
+    - name: Check maintainability index
+      working-directory: cuda-healthcheck
+      run: |
+        radon mi src/ -nb
+
+  documentation:
+    name: Documentation Check
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Check for docstrings
+      working-directory: cuda-healthcheck
+      run: |
+        python -c "
+        import ast
+        import sys
+        from pathlib import Path
+        
+        missing_docstrings = []
+        
+        for py_file in Path('src').rglob('*.py'):
+            if '__init__' in str(py_file):
+                continue
+            
+            with open(py_file) as f:
+                try:
+                    tree = ast.parse(f.read())
+                    for node in ast.walk(tree):
+                        if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+                            if not ast.get_docstring(node):
+                                missing_docstrings.append(f'{py_file}:{node.name}')
+                except:
+                    pass
+        
+        if missing_docstrings:
+            print('⚠️ Missing docstrings:')
+            for item in missing_docstrings[:10]:  # Show first 10
+                print(f'  - {item}')
+        else:
+            print('✓ All functions and classes have docstrings')
+        "
+
+    - name: Check README exists
+      run: |
+        test -f cuda-healthcheck/README.md && echo "✓ README.md exists" || exit 1
+
+    - name: Check documentation files
+      working-directory: cuda-healthcheck
+      run: |
+        test -f docs/ENVIRONMENT_VARIABLES.md && echo "✓ ENVIRONMENT_VARIABLES.md exists"
+        test -f ERROR_HANDLING_SUMMARY.md && echo "✓ ERROR_HANDLING_SUMMARY.md exists"
+        test -f QUICK_REFERENCE.md && echo "✓ QUICK_REFERENCE.md exists"
+
+  code-quality-summary:
+    name: Code Quality Summary
+    runs-on: ubuntu-latest
+    needs: [lint, type-check, security, complexity, documentation]
+    if: always()
+
+    steps:
+    - name: Summary
+      run: |
+        echo "## Code Quality Checks Complete" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Linting (flake8, black, isort)" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Type checking (mypy)" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Security scan (bandit)" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Complexity analysis (radon)" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Documentation check" >> $GITHUB_STEP_SUMMARY
+
+

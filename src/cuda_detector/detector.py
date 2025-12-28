@@ -12,6 +12,11 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
+from ..utils.logging_config import get_logger
+from ..utils.validation import safe_int_conversion, check_command_available
+
+logger = get_logger(__name__)
+
 
 @dataclass
 class GPUInfo:
@@ -52,7 +57,7 @@ class CUDAEnvironment:
 class CUDADetector:
     """Detects CUDA environment and library compatibility on Databricks clusters."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the CUDA detector."""
         self.cuda_paths = [
             "/usr/local/cuda",
@@ -60,6 +65,7 @@ class CUDADetector:
             "/usr/local/cuda-12.6",
             "/usr/local/cuda-13.0",
         ]
+        logger.info("CUDADetector initialized")
 
     def detect_nvidia_smi(self) -> Dict[str, Any]:
         """
@@ -67,9 +73,24 @@ class CUDADetector:
 
         Returns:
             Dictionary containing driver version, CUDA version, and GPU details.
+            Returns error dict if detection fails.
+
+        Raises:
+            CudaDetectionError: If critical detection error occurs
         """
+        # Check if nvidia-smi is available
+        if not check_command_available("nvidia-smi"):
+            error_msg = "nvidia-smi command not found in PATH"
+            logger.error(error_msg)
+            return {
+                "error": error_msg,
+                "success": False,
+                "details": "CUDA toolkit may not be installed or not in PATH",
+            }
+
         try:
-            # Get driver and CUDA version
+            # Get driver and CUDA version with timeout
+            logger.debug("Running nvidia-smi to detect GPU information...")
             result = subprocess.run(
                 [
                     "nvidia-smi",
@@ -82,9 +103,12 @@ class CUDADetector:
             )
 
             if result.returncode != 0:
-                return {"error": "nvidia-smi failed", "details": result.stderr}
+                error_msg = f"nvidia-smi returned non-zero exit code: {result.returncode}"
+                logger.error(f"{error_msg}, stderr: {result.stderr}")
+                return {"error": error_msg, "details": result.stderr, "success": False}
 
             # Parse nvidia-smi version output for CUDA version
+            logger.debug("Parsing CUDA version from nvidia-smi...")
             version_result = subprocess.run(
                 ["nvidia-smi"], capture_output=True, text=True, timeout=10
             )
@@ -95,24 +119,63 @@ class CUDADetector:
                 match = re.search(r"CUDA Version:\s+(\d+\.\d+)", version_result.stdout)
                 if match:
                     cuda_version = match.group(1)
+                    logger.info(f"Detected CUDA version: {cuda_version}")
+                else:
+                    logger.warning("Could not parse CUDA version from nvidia-smi output")
 
-            # Parse GPU information
+            # Parse GPU information with enhanced error handling
             gpus = []
-            for line in result.stdout.strip().split("\n"):
-                if line:
-                    parts = [p.strip() for p in line.split(",")]
-                    if len(parts) >= 5:
-                        gpus.append(
-                            GPUInfo(
-                                name=parts[1],
-                                driver_version=parts[0],
-                                cuda_version=cuda_version or "Unknown",
-                                compute_capability=parts[3],
-                                memory_total_mb=int(float(parts[2])),
-                                gpu_index=int(parts[4]),
-                            )
-                        )
+            for line_num, line in enumerate(result.stdout.strip().split("\n"), 1):
+                if not line.strip():
+                    continue
 
+                try:
+                    parts = [p.strip() for p in line.split(",")]
+                    if len(parts) < 5:
+                        logger.warning(
+                            f"Line {line_num}: Expected 5 fields, got {len(parts)}. Skipping."
+                        )
+                        continue
+
+                    # Safely parse memory and index with error handling
+                    try:
+                        memory_mb = safe_int_conversion(
+                            float(parts[2]) if parts[2] else 0, default=0
+                        )
+                    except ValueError:
+                        logger.warning(f"Line {line_num}: Could not parse memory: {parts[2]}")
+                        memory_mb = 0
+
+                    try:
+                        gpu_index = safe_int_conversion(parts[4], default=line_num - 1)
+                    except ValueError:
+                        logger.warning(f"Line {line_num}: Could not parse GPU index: {parts[4]}")
+                        gpu_index = line_num - 1
+
+                    gpu_info = GPUInfo(
+                        name=parts[1] or "Unknown GPU",
+                        driver_version=parts[0] or "Unknown",
+                        cuda_version=cuda_version or "Unknown",
+                        compute_capability=parts[3] or "Unknown",
+                        memory_total_mb=memory_mb,
+                        gpu_index=gpu_index,
+                    )
+                    gpus.append(gpu_info)
+                    logger.debug(f"Detected GPU: {gpu_info.name} (Index {gpu_index})")
+
+                except Exception as e:
+                    logger.error(f"Line {line_num}: Failed to parse GPU info: {e}")
+                    continue
+
+            if not gpus:
+                logger.warning("No GPUs detected from nvidia-smi output")
+                return {
+                    "error": "No GPUs detected",
+                    "success": False,
+                    "details": "nvidia-smi ran but returned no GPU information",
+                }
+
+            logger.info(f"Successfully detected {len(gpus)} GPU(s)")
             return {
                 "driver_version": gpus[0].driver_version if gpus else None,
                 "cuda_version": cuda_version,
@@ -121,11 +184,33 @@ class CUDADetector:
             }
 
         except FileNotFoundError:
-            return {"error": "nvidia-smi not found", "success": False}
+            error_msg = "nvidia-smi command not found"
+            logger.error(error_msg)
+            return {
+                "error": error_msg,
+                "success": False,
+                "details": "nvidia-smi executable not found in system PATH",
+            }
         except subprocess.TimeoutExpired:
-            return {"error": "nvidia-smi timeout", "success": False}
+            error_msg = "nvidia-smi command timed out after 10 seconds"
+            logger.error(error_msg)
+            return {
+                "error": error_msg,
+                "success": False,
+                "details": "GPU may be unresponsive or system is overloaded",
+            }
+        except PermissionError:
+            error_msg = "Permission denied when running nvidia-smi"
+            logger.error(error_msg)
+            return {
+                "error": error_msg,
+                "success": False,
+                "details": "Check user permissions for GPU access",
+            }
         except Exception as e:
-            return {"error": f"nvidia-smi error: {str(e)}", "success": False}
+            error_msg = f"Unexpected error during nvidia-smi detection: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return {"error": error_msg, "success": False, "details": str(e)}
 
     def detect_cuda_runtime(self) -> Optional[str]:
         """
@@ -134,36 +219,63 @@ class CUDADetector:
         Returns:
             CUDA runtime version string or None if not found.
         """
+        logger.debug("Attempting to detect CUDA runtime version...")
+
         for cuda_path in self.cuda_paths:
-            version_file = Path(cuda_path) / "version.json"
-            version_txt = Path(cuda_path) / "version.txt"
+            try:
+                version_file = Path(cuda_path) / "version.json"
+                version_txt = Path(cuda_path) / "version.txt"
 
-            # Try version.json first (newer CUDA versions)
-            if version_file.exists():
-                try:
-                    with open(version_file, "r") as f:
-                        version_data = json.load(f)
-                        return version_data.get("cuda", {}).get("version")
-                except Exception:
-                    pass
+                # Try version.json first (newer CUDA versions)
+                if version_file.exists():
+                    try:
+                        logger.debug(f"Found {version_file}, attempting to parse...")
+                        with open(version_file, "r") as f:
+                            version_data = json.load(f)
+                            runtime_version = version_data.get("cuda", {}).get("version")
+                            if runtime_version:
+                                logger.info(
+                                    f"Detected CUDA runtime from version.json: {runtime_version}"
+                                )
+                                return str(runtime_version)
+                    except (json.JSONDecodeError, KeyError) as e:
+                        logger.warning(f"Failed to parse {version_file}: {e}")
+                    except IOError as e:
+                        logger.warning(f"Failed to read {version_file}: {e}")
 
-            # Try version.txt (older CUDA versions)
-            if version_txt.exists():
-                try:
-                    with open(version_txt, "r") as f:
-                        content = f.read().strip()
-                        match = re.search(r"CUDA Version\s+(\d+\.\d+\.\d+)", content)
-                        if match:
-                            return match.group(1)
-                except Exception:
-                    pass
+                # Try version.txt (older CUDA versions)
+                if version_txt.exists():
+                    try:
+                        logger.debug(f"Found {version_txt}, attempting to parse...")
+                        with open(version_txt, "r") as f:
+                            content = f.read().strip()
+                            match = re.search(r"CUDA Version\s+(\d+\.\d+\.\d+)", content)
+                            if match:
+                                runtime_version = match.group(1)
+                                logger.info(
+                                    f"Detected CUDA runtime from version.txt: {runtime_version}"
+                                )
+                                return runtime_version
+                    except IOError as e:
+                        logger.warning(f"Failed to read {version_txt}: {e}")
 
-            # Check if this CUDA path exists and extract version from path
-            if Path(cuda_path).exists():
-                match = re.search(r"cuda-(\d+\.\d+)", cuda_path)
-                if match:
-                    return match.group(1)
+                # Check if this CUDA path exists and extract version from path
+                cuda_path_obj = Path(cuda_path)
+                if cuda_path_obj.exists() and cuda_path_obj.is_dir():
+                    match = re.search(r"cuda-(\d+\.\d+)", cuda_path)
+                    if match:
+                        runtime_version = match.group(1)
+                        logger.info(f"Detected CUDA runtime from path: {runtime_version}")
+                        return runtime_version
 
+            except PermissionError:
+                logger.warning(f"Permission denied accessing {cuda_path}")
+                continue
+            except Exception as e:
+                logger.warning(f"Unexpected error checking {cuda_path}: {e}")
+                continue
+
+        logger.warning("Could not detect CUDA runtime version from any known location")
         return None
 
     def detect_nvcc_version(self) -> Optional[str]:
@@ -173,7 +285,12 @@ class CUDADetector:
         Returns:
             nvcc version string or None if not found.
         """
+        if not check_command_available("nvcc"):
+            logger.debug("nvcc command not available in PATH")
+            return None
+
         try:
+            logger.debug("Running nvcc --version...")
             result = subprocess.run(
                 ["nvcc", "--version"], capture_output=True, text=True, timeout=5
             )
@@ -182,11 +299,24 @@ class CUDADetector:
                 # Extract version from output (e.g., "release 12.4, V12.4.131")
                 match = re.search(r"release (\d+\.\d+)", result.stdout)
                 if match:
-                    return match.group(1)
+                    nvcc_version = match.group(1)
+                    logger.info(f"Detected nvcc version: {nvcc_version}")
+                    return nvcc_version
+                else:
+                    logger.warning("nvcc command succeeded but could not parse version")
+            else:
+                logger.warning(f"nvcc command failed with exit code {result.returncode}")
 
             return None
 
-        except (FileNotFoundError, subprocess.TimeoutExpired):
+        except FileNotFoundError:
+            logger.debug("nvcc executable not found")
+            return None
+        except subprocess.TimeoutExpired:
+            logger.warning("nvcc command timed out after 5 seconds")
+            return None
+        except Exception as e:
+            logger.warning(f"Unexpected error running nvcc: {e}")
             return None
 
     def detect_pytorch(self) -> LibraryInfo:
@@ -199,20 +329,39 @@ class CUDADetector:
         warnings = []
 
         try:
+            logger.debug("Attempting to import PyTorch...")
             import torch
 
             version = torch.__version__
-            cuda_available = torch.cuda.is_available()
-            cuda_version = torch.version.cuda if cuda_available else None
+            logger.info(f"PyTorch version {version} detected")
 
-            if not cuda_available:
-                warnings.append("PyTorch CUDA not available - CPU-only build detected")
+            try:
+                cuda_available = torch.cuda.is_available()
+                cuda_version = torch.version.cuda if cuda_available else None
 
-            # Check for version compatibility issues
-            if cuda_version:
-                cuda_major = int(cuda_version.split(".")[0])
-                if cuda_major >= 13:
-                    warnings.append("PyTorch may need rebuild for CUDA 13.x compatibility")
+                if not cuda_available:
+                    warning_msg = "PyTorch CUDA not available - CPU-only build detected"
+                    warnings.append(warning_msg)
+                    logger.warning(warning_msg)
+                else:
+                    logger.info(f"PyTorch CUDA version: {cuda_version}")
+
+                # Check for version compatibility issues
+                if cuda_version:
+                    try:
+                        cuda_major = int(cuda_version.split(".")[0])
+                        if cuda_major >= 13:
+                            warning_msg = "PyTorch may need rebuild for CUDA 13.x compatibility"
+                            warnings.append(warning_msg)
+                            logger.warning(warning_msg)
+                    except (ValueError, IndexError) as e:
+                        logger.warning(f"Could not parse CUDA major version: {e}")
+
+            except Exception as e:
+                warnings.append(f"Error checking CUDA availability: {str(e)}")
+                logger.error(f"Error checking PyTorch CUDA: {e}", exc_info=True)
+                cuda_available = False
+                cuda_version = None
 
             return LibraryInfo(
                 name="pytorch",
@@ -223,12 +372,23 @@ class CUDADetector:
             )
 
         except ImportError:
+            logger.info("PyTorch not installed")
             return LibraryInfo(
                 name="pytorch",
                 version="Not installed",
                 cuda_version=None,
                 is_compatible=False,
                 warnings=["PyTorch not installed"],
+            )
+        except Exception as e:
+            error_msg = f"Unexpected error detecting PyTorch: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return LibraryInfo(
+                name="pytorch",
+                version="Error",
+                cuda_version=None,
+                is_compatible=False,
+                warnings=[error_msg],
             )
 
     def detect_tensorflow(self) -> LibraryInfo:

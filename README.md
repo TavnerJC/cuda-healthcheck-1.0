@@ -11,9 +11,20 @@ Proactively identify CUDA version mismatches, library incompatibilities, and bre
 - **Comprehensive CUDA Detection**: Detects CUDA versions, GPU properties, and driver information
 - **Library Compatibility Checking**: Analyzes PyTorch, TensorFlow, cuDF/RAPIDS compatibility
 - **Breaking Changes Database**: Maintains knowledge base of CUDA version transitions
-- **Databricks Integration**: Scans all GPU clusters in your workspace
+- **Databricks Integration**: High-level and low-level APIs for cluster operations
 - **Delta Table Storage**: Stores results in Unity Catalog for historical analysis
 - **Compatibility Scoring**: Provides actionable compatibility scores and recommendations
+- **Production-Ready**: Full error handling, retry logic, logging, and testing infrastructure
+- **Security-Conscious**: Supports secrets management and credential best practices
+
+## 🏗️ Architecture
+
+The tool provides multiple integration levels:
+
+1. **Simple Function API** - `run_complete_healthcheck()` for quick checks
+2. **Orchestrator Class** - `HealthcheckOrchestrator` for detailed workflows
+3. **Databricks High-Level** - `DatabricksHealthchecker` for notebook integration
+4. **Databricks Low-Level** - `DatabricksConnector` for API operations
 
 ## 📋 Prerequisites
 
@@ -39,13 +50,82 @@ pip install -r requirements.txt
 
 ### 3. Set up environment variables
 
+See [docs/ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md) for comprehensive configuration guide.
+
+**Quick setup**:
 ```bash
 export DATABRICKS_HOST="https://your-workspace.cloud.databricks.com"
 export DATABRICKS_TOKEN="your-personal-access-token"
-export DATABRICKS_WAREHOUSE_ID="your-warehouse-id"  # For Delta table operations
+export DATABRICKS_WAREHOUSE_ID="your-warehouse-id"  # Optional, for Delta tables
+export CUDA_HEALTHCHECK_LOG_LEVEL="INFO"  # Optional, default: INFO
 ```
 
-## 📖 Usage
+Or use a `.env` file (recommended for local development):
+```bash
+# .env
+DATABRICKS_HOST=https://your-workspace.cloud.databricks.com
+DATABRICKS_TOKEN=dapi1234567890abcdef
+DATABRICKS_WAREHOUSE_ID=warehouse_abc123
+CUDA_HEALTHCHECK_LOG_LEVEL=DEBUG
+```
+
+## 📖 Quick Start
+
+### 1. Simple Healthcheck
+
+```python
+from src import run_complete_healthcheck
+import json
+
+# Run complete healthcheck
+result = run_complete_healthcheck()
+print(json.dumps(result, indent=2))
+```
+
+### 2. Databricks Integration (Recommended)
+
+```python
+# In Databricks notebook or with Databricks credentials
+from src.databricks import get_healthchecker
+
+# Get configured healthchecker
+checker = get_healthchecker()
+
+# Run healthcheck on current cluster
+result = checker.run_healthcheck()
+
+# Display results in notebook
+checker.display_results()
+
+# Save to Delta table
+checker.export_results_to_delta("main.cuda_healthcheck.results")
+```
+
+### 3. Advanced Orchestration
+
+```python
+from src import HealthcheckOrchestrator
+
+# Create orchestrator
+orchestrator = HealthcheckOrchestrator()
+
+# Generate full report
+report = orchestrator.generate_report()
+
+# Display summary
+orchestrator.print_report_summary()
+
+# Save to JSON
+orchestrator.save_report_json("healthcheck_report.json")
+
+# Check version compatibility
+compatibility = orchestrator.check_compatibility(
+    local_version="12.4",
+    cluster_version="13.0"
+)
+```
+
+## 📖 Detailed Usage
 
 ### Running Local CUDA Detection
 
@@ -215,25 +295,75 @@ WHERE array_size(filter(breaking_changes, x -> x.severity = 'CRITICAL')) > 0;
 
 ## 🧪 Testing
 
-Run unit tests:
+The project includes comprehensive testing infrastructure:
 
 ```bash
-pytest tests/
+# Run all tests
+pytest tests/ -v
+
+# Run specific test suite
+pytest tests/databricks/ -v
+
+# Run with coverage
+pytest tests/ -v --cov=src --cov-report=html
+
+# Run parameterized tests for all CUDA versions
+pytest tests/ -v -k "cuda_versions"
 ```
 
-Run with coverage:
+**Test Features**:
+- 22+ comprehensive test fixtures
+- Parameterized tests for CUDA 12.4, 12.6, 13.0
+- Mock Databricks utilities (no real cluster required)
+- High coverage potential (80%+)
 
-```bash
-pytest --cov=src tests/
-```
+See [tests/conftest.py](tests/conftest.py) for available fixtures.
+
+## 📚 Documentation
+
+- **[ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md)** - Complete configuration guide
+- **[SETUP.md](docs/SETUP.md)** - Detailed setup instructions
+- **[BREAKING_CHANGES.md](docs/BREAKING_CHANGES.md)** - CUDA breaking changes database
+- **[MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md)** - Version migration instructions
+- **[IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md)** - Recent enhancements overview
 
 ## 🚦 CI/CD
 
-The project includes GitHub Actions workflows for:
+![Tests](https://github.com/username/repo/workflows/Tests/badge.svg)
+![Code Quality](https://github.com/username/repo/workflows/Code%20Quality/badge.svg)
 
-- Automated testing on CUDA 12.4, 12.6, and 13.0
-- Code quality checks (Black, Flake8, MyPy)
-- Automated dependency updates via Renovate
+The project includes comprehensive GitHub Actions workflows for:
+
+### Automated Testing
+- **Multi-version Testing**: Python 3.10, 3.11, 3.12
+- **Coverage Reporting**: Codecov integration
+- **Module Testing**: Individual module validation
+- **Compatibility Tests**: CUDA version compatibility scenarios
+- **Integration Tests**: Complete workflow validation
+- **Notebook Validation**: Databricks notebook syntax checks
+
+### Code Quality
+- **Linting**: flake8, black, isort (line length 100)
+- **Type Checking**: mypy static analysis
+- **Security Scanning**: bandit vulnerability detection
+- **Complexity Analysis**: radon metrics
+- **Documentation**: Docstring validation
+
+### Pull Request Automation
+- **Quick Tests**: Fast validation (<2 min)
+- **Changed Files Analysis**: Test coverage warnings
+- **PR Size Checks**: Large PR warnings (>1000 lines)
+- **Auto-labeling**: Module and type labels
+- **Dependency Analysis**: Requirements validation
+
+### Release & Maintenance
+- **Automated Releases**: Tag-based releases with changelog
+- **Nightly Builds**: Daily comprehensive testing
+- **Dependabot**: Weekly dependency updates for GitHub Actions and Python packages
+
+**Total**: 22 automated jobs across 5 workflows
+
+See [docs/CICD.md](docs/CICD.md) for comprehensive CI/CD documentation.
 
 ## 📚 Supported CUDA Versions
 
@@ -250,10 +380,36 @@ The project includes GitHub Actions workflows for:
 ## 🤝 Contributing
 
 1. Create a feature branch
-2. Make your changes
+2. Make your changes following `.cursorrules` standards
 3. Add tests for new functionality
 4. Run linters: `black src/ tests/ --line-length=100 && flake8 src/ tests/ --max-line-length=100`
-5. Submit a PR
+5. Update documentation as needed
+6. Submit a PR
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+
+## 🆕 Recent Enhancements (v1.0.0)
+
+### New Modules
+- **`src.databricks`** - Complete Databricks integration with high-level and low-level APIs
+- **`src.utils`** - Logging, retry logic, and custom exceptions
+- **`HealthcheckOrchestrator`** - Class-based healthcheck orchestration
+
+### New Features
+- Comprehensive error handling with custom exception types
+- Retry logic with exponential backoff for API calls
+- Centralized logging configuration
+- Mock fixtures for testing without Databricks
+- Environment variables documentation
+- Security best practices for credential management
+
+### Improvements
+- Fixed all `__init__.py` files with clean exports
+- Added type hints throughout
+- Enhanced docstrings with examples
+- Production-ready code quality
+
+See [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) for complete details.
 
 ## 📄 License
 

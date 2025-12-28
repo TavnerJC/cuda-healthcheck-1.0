@@ -39,7 +39,7 @@ class BreakingChange:
 class BreakingChangesDatabase:
     """Database of CUDA breaking changes and compatibility issues."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the breaking changes database."""
         self.breaking_changes = self._initialize_database()
 

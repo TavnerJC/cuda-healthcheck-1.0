@@ -180,7 +180,8 @@ except Exception as e:
 
                         if output.notebook_output and output.notebook_output.result:
                             try:
-                                return json.loads(output.notebook_output.result)
+                                result: Dict[str, Any] = json.loads(output.notebook_output.result)
+                                return result
                             except json.JSONDecodeError:
                                 return {
                                     "error": "Failed to parse output",

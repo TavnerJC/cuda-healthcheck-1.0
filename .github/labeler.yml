@@ -1,0 +1,56 @@
+# Auto-labeling configuration for Pull Requests
+
+# Source code changes
+"type: src":
+  - cuda-healthcheck/src/**/*
+
+# Test changes  
+"type: tests":
+  - cuda-healthcheck/tests/**/*
+
+# Documentation changes
+"type: docs":
+  - "**/*.md"
+  - cuda-healthcheck/docs/**/*
+
+# Configuration changes
+"type: config":
+  - "**/*.yml"
+  - "**/*.yaml"
+  - "**/*.toml"
+  - "**/*.ini"
+  - "**/requirements.txt"
+  - "**/.cursorrules"
+
+# CI/CD changes
+"ci/cd":
+  - ".github/**/*"
+
+# Notebooks
+"type: notebooks":
+  - cuda-healthcheck/notebooks/**/*
+
+# Dependencies
+"dependencies":
+  - "**/requirements.txt"
+  - "**/setup.py"
+  - "**/pyproject.toml"
+
+# Module-specific labels
+"module: cuda-detector":
+  - cuda-healthcheck/src/cuda_detector/**/*
+
+"module: databricks":
+  - cuda-healthcheck/src/databricks/**/*
+  - cuda-healthcheck/src/databricks_api/**/*
+
+"module: healthcheck":
+  - cuda-healthcheck/src/healthcheck/**/*
+
+"module: utils":
+  - cuda-healthcheck/src/utils/**/*
+
+"module: data":
+  - cuda-healthcheck/src/data/**/*
+
+

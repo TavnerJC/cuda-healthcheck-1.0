@@ -1,0 +1,95 @@
+name: Nightly Build
+
+on:
+  schedule:
+    # Run at 2 AM UTC every day
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  nightly-test:
+    name: Nightly Full Test Suite
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r cuda-healthcheck/requirements.txt
+        pip install pytest pytest-cov pytest-xdist
+
+    - name: Run full test suite
+      working-directory: cuda-healthcheck
+      run: |
+        pytest tests/ -v --cov=src --cov-report=html --cov-report=term -n auto
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report-${{ github.run_number }}
+        path: cuda-healthcheck/htmlcov/
+
+  nightly-compatibility:
+    name: Nightly Compatibility Matrix
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r cuda-healthcheck/requirements.txt
+        pip install pytest
+
+    - name: Run tests
+      working-directory: cuda-healthcheck
+      run: |
+        pytest tests/ -v
+
+  nightly-report:
+    name: Generate Nightly Report
+    runs-on: ubuntu-latest
+    needs: [nightly-test, nightly-compatibility]
+    if: always()
+    
+    steps:
+    - name: Create report
+      run: |
+        echo "## Nightly Build Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Date**: $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ needs.nightly-test.result }}" == "success" ]; then
+          echo "✅ Full test suite passed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Full test suite failed" >> $GITHUB_STEP_SUMMARY
+        fi
+        echo "" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ needs.nightly-compatibility.result }}" == "success" ]; then
+          echo "✅ Compatibility matrix passed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Compatibility matrix failed" >> $GITHUB_STEP_SUMMARY
+        fi
+
+

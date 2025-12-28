@@ -1,5 +1,33 @@
-"""CUDA Detection Module for Databricks Clusters."""
+"""
+CUDA Detection Module for Databricks Clusters.
 
-from .detector import CUDADetector, detect_cuda_environment
+Provides classes and functions for detecting CUDA versions, GPU properties,
+and library compatibility.
 
-__all__ = ["CUDADetector", "detect_cuda_environment"]
+Example:
+    ```python
+    from src.cuda_detector import CUDADetector
+
+    detector = CUDADetector()
+    environment = detector.detect_environment()
+    print(f"CUDA Version: {environment.cuda_driver_version}")
+    ```
+"""
+
+from .detector import (
+    CUDADetector,
+    detect_cuda_environment,
+    GPUInfo,
+    LibraryInfo,
+    CUDAEnvironment,
+)
+
+__all__ = [
+    "CUDADetector",
+    "detect_cuda_environment",
+    "GPUInfo",
+    "LibraryInfo",
+    "CUDAEnvironment",
+]
+
+__version__ = "1.0.0"
