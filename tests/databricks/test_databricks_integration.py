@@ -5,12 +5,14 @@ Tests the high-level Databricks healthcheck functionality including
 CUDA detection, compatibility analysis, and Delta table export.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from src.databricks.databricks_integration import (
     DatabricksHealthchecker,
-    get_healthchecker,
     HealthcheckResult,
+    get_healthchecker,
 )
 
 

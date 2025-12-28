@@ -13,7 +13,7 @@ Example:
     ```
 """
 
-from .cluster_scanner import ClusterScanner, scan_clusters, ClusterHealthcheck
+from .cluster_scanner import ClusterHealthcheck, ClusterScanner, scan_clusters
 
 __all__ = ["ClusterScanner", "scan_clusters", "ClusterHealthcheck"]
 

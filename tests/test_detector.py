@@ -1,7 +1,9 @@
 """Unit tests for CUDA detector."""
 
+from unittest.mock import Mock, mock_open, patch
+
 import pytest
-from unittest.mock import Mock, patch, mock_open
+
 from src.cuda_detector.detector import CUDADetector, detect_cuda_environment
 
 

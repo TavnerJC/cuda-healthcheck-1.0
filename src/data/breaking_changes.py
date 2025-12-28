@@ -6,9 +6,9 @@ library breaking changes, and migration paths for Databricks environments.
 """
 
 import json
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 
 class Severity(Enum):

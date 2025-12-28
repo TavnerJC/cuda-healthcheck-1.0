@@ -5,12 +5,12 @@ This module scans all GPU-enabled Databricks clusters, runs CUDA healthchecks,
 and stores results in Delta tables for analysis.
 """
 
-import os
 import json
+import os
 import time
-from typing import Dict, List, Optional, Any
+from dataclasses import asdict, dataclass
 from datetime import datetime
-from dataclasses import dataclass, asdict
+from typing import Any, Dict, List, Optional
 
 try:
     from databricks.sdk import WorkspaceClient

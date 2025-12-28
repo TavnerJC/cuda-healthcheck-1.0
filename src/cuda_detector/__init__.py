@@ -16,10 +16,10 @@ Example:
 
 from .detector import (
     CUDADetector,
-    detect_cuda_environment,
+    CUDAEnvironment,
     GPUInfo,
     LibraryInfo,
-    CUDAEnvironment,
+    detect_cuda_environment,
 )
 
 __all__ = [

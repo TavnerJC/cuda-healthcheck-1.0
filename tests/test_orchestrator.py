@@ -5,9 +5,11 @@ Tests can be run locally without any dependencies on Databricks or CUDA.
 Uses mocks to simulate CUDA detection and breaking changes database.
 """
 
-import pytest
-from unittest.mock import MagicMock, patch, Mock
 from dataclasses import dataclass
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
+
 from src.healthcheck.orchestrator import (
     HealthcheckOrchestrator,
     HealthcheckReport,

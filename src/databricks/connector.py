@@ -6,19 +6,24 @@ Spark configuration, and Delta table operations.
 """
 
 import os
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
-from ..utils.logging_config import get_logger
 from ..utils.exceptions import (
-    DatabricksConnectionError,
     ClusterNotFoundError,
     ClusterNotRunningError,
-    DeltaTableError,
     ConfigurationError,
+    DatabricksConnectionError,
+    DeltaTableError,
 )
+from ..utils.logging_config import get_logger
 from ..utils.retry import retry_on_failure
-from ..utils.validation import validate_cluster_id, validate_databricks_host, validate_token
+from ..utils.validation import (
+    validate_cluster_id,
+    validate_databricks_host,
+    validate_table_path,
+    validate_token,
+)
 
 logger = get_logger(__name__)
 
@@ -329,9 +334,15 @@ class DatabricksConnector:
             if not warehouse_id:
                 raise DeltaTableError("DATABRICKS_WAREHOUSE_ID environment variable not set")
 
+            # Validate table_path format (catalog.schema.table)
+            if not validate_table_path(table_path):
+                raise DeltaTableError(f"Invalid table path format: {table_path}")
+
+            # nosec B608 - table_path is validated above
             query = f"SELECT * FROM {table_path}"
             if limit:
-                query += f" LIMIT {limit}"
+                # Ensure limit is an integer to prevent injection
+                query += f" LIMIT {int(limit)}"
 
             self.client.statement_execution.execute_statement(
                 warehouse_id=warehouse_id,

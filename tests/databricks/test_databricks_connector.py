@@ -5,17 +5,19 @@ Tests the low-level Databricks API connector functionality including
 cluster information retrieval, Spark configuration, and Delta operations.
 """
 
+from unittest.mock import MagicMock, Mock, patch
+
 import pytest
-from unittest.mock import MagicMock, patch, Mock
+
 from src.databricks.connector import (
+    ClusterInfo,
     DatabricksConnector,
     is_databricks_environment,
-    ClusterInfo,
 )
 from src.utils.exceptions import (
-    DatabricksConnectionError,
     ClusterNotFoundError,
     ClusterNotRunningError,
+    DatabricksConnectionError,
 )
 
 

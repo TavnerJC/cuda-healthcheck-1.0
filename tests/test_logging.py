@@ -4,11 +4,13 @@ Unit tests for logging configuration.
 Tests can be run locally without any dependencies on Databricks or CUDA.
 """
 
-import pytest
 import logging
 import os
-from unittest.mock import patch, MagicMock
-from src.utils.logging_config import get_logger, setup_logging, get_databricks_logger
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from src.utils.logging_config import get_databricks_logger, get_logger, setup_logging
 
 
 class TestGetLogger:

@@ -6,9 +6,9 @@ Provides both a class-based orchestrator and a simple function interface.
 """
 
 import json
-from typing import Dict, Any, List, Optional
+from dataclasses import asdict, dataclass
 from datetime import datetime
-from dataclasses import dataclass, asdict
+from typing import Any, Dict, List, Optional
 
 from ..cuda_detector.detector import CUDADetector, CUDAEnvironment
 from ..data.breaking_changes import BreakingChangesDatabase

@@ -5,11 +5,10 @@ Provides mock implementations of Databricks utilities, CUDA detection,
 and common test data.
 """
 
-import pytest
-from unittest.mock import MagicMock, Mock
-from typing import Dict, Any, List
-from dataclasses import dataclass
+from typing import Any, Dict, List
+from unittest.mock import MagicMock
 
+import pytest
 
 # ============================================================================
 # Mock Databricks Utilities

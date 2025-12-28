@@ -6,9 +6,9 @@ clusters and storing results in Delta tables.
 """
 
 import os
-from typing import Dict, Optional, Any, List
+from dataclasses import asdict, dataclass
 from datetime import datetime
-from dataclasses import dataclass, asdict
+from typing import Any, Dict, List, Optional
 
 from ..cuda_detector.detector import CUDADetector, CUDAEnvironment
 from ..data.breaking_changes import BreakingChangesDatabase

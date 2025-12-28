@@ -41,8 +41,8 @@ from .cuda_detector import CUDADetector, detect_cuda_environment
 from .data import (
     BreakingChange,
     BreakingChangesDatabase,
-    score_compatibility,
     get_breaking_changes,
+    score_compatibility,
 )
 
 # Healthcheck orchestration
@@ -55,8 +55,8 @@ from .healthcheck import (
 # Databricks integration (optional - may not be available in all environments)
 try:
     from .databricks import (
-        DatabricksHealthchecker,
         DatabricksConnector,
+        DatabricksHealthchecker,
         get_healthchecker,
         is_databricks_environment,
     )

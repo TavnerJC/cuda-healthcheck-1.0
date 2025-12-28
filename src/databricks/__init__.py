@@ -26,15 +26,15 @@ Example:
     ```
 """
 
-from .databricks_integration import (
-    DatabricksHealthchecker,
-    get_healthchecker,
-    HealthcheckResult,
-)
 from .connector import (
+    ClusterInfo,
     DatabricksConnector,
     is_databricks_environment,
-    ClusterInfo,
+)
+from .databricks_integration import (
+    DatabricksHealthchecker,
+    HealthcheckResult,
+    get_healthchecker,
 )
 
 __all__ = [

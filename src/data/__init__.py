@@ -16,9 +16,9 @@ Example:
 from .breaking_changes import (
     BreakingChange,
     BreakingChangesDatabase,
-    score_compatibility,
-    get_breaking_changes,
     Severity,
+    get_breaking_changes,
+    score_compatibility,
 )
 
 __all__ = [

@@ -5,16 +5,17 @@ Tests can be run locally without any dependencies on Databricks or CUDA.
 """
 
 import pytest
+
 from src.utils.exceptions import (
-    CudaHealthcheckError,
-    CudaDetectionError,
-    DatabricksConnectionError,
-    ClusterNotRunningError,
-    ClusterNotFoundError,
-    DeltaTableError,
-    CompatibilityError,
     BreakingChangeError,
+    ClusterNotFoundError,
+    ClusterNotRunningError,
+    CompatibilityError,
     ConfigurationError,
+    CudaDetectionError,
+    CudaHealthcheckError,
+    DatabricksConnectionError,
+    DeltaTableError,
 )
 
 

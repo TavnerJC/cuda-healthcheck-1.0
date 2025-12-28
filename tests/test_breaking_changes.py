@@ -5,12 +5,13 @@ Tests can be run locally without any dependencies on Databricks or CUDA.
 """
 
 import pytest
+
 from src.data.breaking_changes import (
     BreakingChange,
     BreakingChangesDatabase,
     Severity,
-    score_compatibility,
     get_breaking_changes,
+    score_compatibility,
 )
 
 
