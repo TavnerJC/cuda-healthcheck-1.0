@@ -112,7 +112,11 @@ dbutils.library.restartPython()
 
 📘 **See [notebooks/databricks_healthcheck.py](notebooks/databricks_healthcheck.py) for complete working notebook**
 
-### Local Python
+### Local Python (After Installation)
+
+> **Note:** These examples assume you've already installed the package locally using `pip install git+https://github.com/TavnerJC/cuda-healthcheck-1.0.git`
+
+> **For Databricks:** Use the provided notebooks instead - they include installation steps!
 
 #### 1. Simple Healthcheck
 
