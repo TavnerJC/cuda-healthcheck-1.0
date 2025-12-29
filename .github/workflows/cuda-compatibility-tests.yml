@@ -51,7 +51,7 @@ jobs:
         pytest tests/ -v --cov=src --cov-report=xml -k "compatibility or breaking"
     
     - name: Upload coverage
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v5
       with:
         file: ./cuda-healthcheck/coverage.xml
         flags: cuda-${{ matrix.cuda-version }}-python-${{ matrix.python-version }}
