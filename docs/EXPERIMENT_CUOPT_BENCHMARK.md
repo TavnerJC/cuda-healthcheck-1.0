@@ -54,7 +54,7 @@ dbutils.library.restartPython()
 from cuda_healthcheck import CUDADetector, BreakingChangesDatabase
 from cuda_healthcheck.databricks import detect_gpu_auto
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 # COMMAND ----------
 # MAGIC %md
@@ -139,6 +139,90 @@ print(f"Critical Issues: {score['critical_issues']}")
 print(f"Warning Issues: {score['warning_issues']}")
 print(f"Status: {score['recommendation']}")
 
+if score['critical_issues'] > 0:
+    print(f"\n⚠️  Critical breaking changes found!")
+if score['warning_issues'] > 0:
+    print(f"\n⚠️  {score['warning_issues']} warnings - review before upgrading")
+
+# COMMAND ----------
+# MAGIC %md
+# MAGIC ## Detailed Compatibility Issues
+
+# COMMAND ----------
+# Get detailed breaking changes for current CUDA version
+print("=" * 80)
+print("🔍 DETAILED COMPATIBILITY ANALYSIS")
+print("=" * 80)
+
+# Get all breaking changes for CUDA 13.0
+changes_13 = db.get_changes_by_cuda_version("13.0")
+
+if changes_13:
+    print(f"\n📋 Found {len(changes_13)} breaking change(s) for CUDA 13.0:")
+    
+    for i, change in enumerate(changes_13, 1):
+        print(f"\n{'─' * 80}")
+        print(f"Issue #{i}: {change.title}")
+        print(f"{'─' * 80}")
+        print(f"Severity: {change.severity.upper()}")
+        print(f"Library: {change.affected_library}")
+        print(f"Transition: CUDA {change.cuda_version_from} → {change.cuda_version_to}")
+        print(f"\nDescription:")
+        print(f"  {change.description}")
+        
+        if change.migration_path:
+            print(f"\n✅ Migration Path:")
+            for step in change.migration_path:
+                print(f"  • {step}")
+        
+        print(f"\n📚 Code Reference:")
+        print(f"  File: cuda_healthcheck/data/breaking_changes.py")
+        print(f"  Change ID: {change.id}")
+        print(f"  GitHub: https://github.com/TavnerJC/cuda-healthcheck-1.0/blob/main/cuda_healthcheck/data/breaking_changes.py")
+else:
+    print("\n✅ No breaking changes found for CUDA 13.0")
+
+# Also check transition from current CUDA version
+if env.cuda_runtime_version:
+    print(f"\n{'=' * 80}")
+    print(f"🔄 TRANSITION ANALYSIS: CUDA {env.cuda_runtime_version} → 13.0")
+    print(f"{'=' * 80}")
+    
+    transition_changes = db.get_changes_by_cuda_transition(
+        env.cuda_runtime_version, 
+        "13.0"
+    )
+    
+    if transition_changes:
+        print(f"\n⚠️  {len(transition_changes)} change(s) affect your specific upgrade path:")
+        
+        critical_count = sum(1 for c in transition_changes if c.severity == "CRITICAL")
+        warning_count = sum(1 for c in transition_changes if c.severity == "WARNING")
+        
+        print(f"  • Critical: {critical_count}")
+        print(f"  • Warnings: {warning_count}")
+        
+        print(f"\n🎯 Recommendation:")
+        if critical_count > 0:
+            print(f"  ❌ DO NOT upgrade to CUDA 13.0 without addressing critical issues")
+            print(f"  📝 Review migration paths and update affected libraries")
+        elif warning_count > 0:
+            print(f"  ⚠️  Upgrade possible but test thoroughly")
+            print(f"  📝 Review warnings and plan for deprecations")
+        else:
+            print(f"  ✅ Safe to upgrade with current configuration")
+    else:
+        print(f"\n✅ No specific breaking changes for CUDA {env.cuda_runtime_version} → 13.0 transition")
+
+print(f"\n{'=' * 80}")
+print("📚 REFERENCES")
+print("=" * 80)
+print("Breaking Changes Database:")
+print("  • Local: cuda_healthcheck/data/breaking_changes.py")
+print("  • GitHub: https://github.com/TavnerJC/cuda-healthcheck-1.0/blob/main/cuda_healthcheck/data/breaking_changes.py")
+print("  • Docs: https://github.com/TavnerJC/cuda-healthcheck-1.0/blob/main/docs/USE_CASE_ROUTING_OPTIMIZATION.md")
+print("=" * 80)
+
 # COMMAND ----------
 # MAGIC %md
 # MAGIC ## Save Environment Snapshot
@@ -148,7 +232,7 @@ print(f"Status: {score['recommendation']}")
 pytorch_lib = next((lib for lib in env.libraries if lib.name.lower() == "pytorch"), None)
 
 environment_snapshot = {
-    "timestamp": datetime.utcnow().isoformat(),
+    "timestamp": datetime.now(timezone.utc).isoformat(),
     "gpu_info": gpu_info,
     "cuda_environment": {
         "runtime": env.cuda_runtime_version,
