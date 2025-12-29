@@ -30,6 +30,11 @@
 # MAGIC ## Step 1: Install CUDA Healthcheck Package
 # MAGIC
 # MAGIC Install the package from GitHub.
+# MAGIC
+# MAGIC **⚠️ Important:** After running this cell, you'll see a **red warning note** that says:
+# MAGIC > "Note: you may need to restart the kernel using %restart_python or dbutils.library.restartPython()"
+# MAGIC
+# MAGIC **This is NORMAL and EXPECTED!** It means the installation succeeded. Just proceed to Step 2.
 
 # COMMAND ----------
 
@@ -41,6 +46,14 @@
 # MAGIC ## Step 2: Restart Python
 # MAGIC
 # MAGIC **REQUIRED:** Restart Python to load the newly installed package.
+# MAGIC
+# MAGIC **What happens:**
+# MAGIC - ⏸️ Notebook execution pauses (~10 seconds)
+# MAGIC - 🔄 Python interpreter restarts
+# MAGIC - 🧹 All variables cleared (expected behavior)
+# MAGIC - ✅ Package now ready to use
+# MAGIC
+# MAGIC **⚠️ Do NOT re-run Step 1 after this restart!**
 
 # COMMAND ----------
 
@@ -236,6 +249,57 @@ print("=" * 80)
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## Step 6 (Optional): CUDA 12.6 Specific Compatibility Check
+# MAGIC
+# MAGIC If your environment uses CUDA 12.6 (common with PyTorch 2.7.1+cu126), run this cell to verify specific compatibility.
+
+# COMMAND ----------
+
+from cuda_healthcheck.data import BreakingChangesDatabase
+
+print("=" * 80)
+print("🔍 CUDA 12.6 SPECIFIC COMPATIBILITY CHECK")
+print("=" * 80)
+
+db = BreakingChangesDatabase()
+
+# Detect your actual PyTorch CUDA version
+from cuda_healthcheck import CUDADetector
+detector = CUDADetector()
+pytorch_info = detector.detect_pytorch()
+
+detected_libs = [
+    {"name": "pytorch", "version": pytorch_info.version, "cuda_version": pytorch_info.cuda_version},
+]
+
+print(f"\n📦 Detected Environment:")
+print(f"   PyTorch: {pytorch_info.version}")
+print(f"   CUDA: {pytorch_info.cuda_version}")
+
+# Score for CUDA 12.6 specifically
+if "12.6" in pytorch_info.cuda_version:
+    print("\n📊 Testing Against CUDA 12.6:")
+    score_126 = db.score_compatibility(detected_libs, "12.6")
+    
+    print(f"\n💯 Compatibility Score: {score_126['compatibility_score']}/100")
+    print(f"   Critical Issues: {score_126['critical_issues']}")
+    print(f"   Warning Issues: {score_126['warning_issues']}")
+    print(f"   Recommendation: {score_126['recommendation']}")
+    
+    if score_126['breaking_changes']['WARNING']:
+        print("\n⚠️  NOTE: If you see a warning about 'CUDA 12.4 binaries on 12.6':")
+        print("   This is overly cautious - you have PyTorch built FOR 12.6 (cu126)")
+        print("   Your setup is actually optimal! ✅")
+else:
+    print(f"\n✅ Your CUDA version: {pytorch_info.cuda_version}")
+    score = db.score_compatibility(detected_libs, pytorch_info.cuda_version.split('+')[-1][:4])
+    print(f"   Compatibility Score: {score['compatibility_score']}/100")
+
+print("\n" + "=" * 80)
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## Summary
 # MAGIC
 # MAGIC This notebook successfully:
@@ -244,17 +308,35 @@ print("=" * 80)
 # MAGIC - ✅ Detected CUDA driver and runtime versions
 # MAGIC - ✅ Analyzed ML framework compatibility
 # MAGIC - ✅ Provided compatibility scores and recommendations
+# MAGIC - ✅ Verified CUDA 12.6 support (if applicable)
 # MAGIC
 # MAGIC **Key Features of Serverless:**
 # MAGIC - Direct GPU access (no Spark distribution needed)
 # MAGIC - Faster execution (single-process model)
 # MAGIC - Simpler architecture (no driver-worker complexity)
+# MAGIC - Uses `detect_gpu_auto()` for environment-aware detection
+# MAGIC
+# MAGIC **Validated Hardware (Example from Testing):**
+# MAGIC - NVIDIA A10G (23GB, Compute Capability 8.6)
+# MAGIC - Driver: 550.144.03
+# MAGIC - CUDA Runtime: 12.6 (via PyTorch 2.7.1+cu126)
+# MAGIC - Compatibility Score: 90-100/100 ✅
 # MAGIC
 # MAGIC **Next Steps:**
 # MAGIC - Save this notebook for regular validation
 # MAGIC - Run before upgrading CUDA or ML frameworks
 # MAGIC - Use compatibility scores to plan upgrades
+# MAGIC - Share with your ML team
 # MAGIC
 # MAGIC **For Classic ML Runtime:**
 # MAGIC - Use `databricks_healthcheck.py` for distributed detection
 # MAGIC - Leverages Spark for multi-worker GPU discovery
+# MAGIC
+# MAGIC **Troubleshooting:**
+# MAGIC - Red warning after %pip install? → Normal! Proceed to restart.
+# MAGIC - ModuleNotFoundError? → Did you restart Python (Step 2)?
+# MAGIC - Variables undefined after restart? → Expected behavior, continue to Step 3+
+# MAGIC
+# MAGIC **Documentation:**
+# MAGIC - Full Guide: https://github.com/TavnerJC/cuda-healthcheck-1.0/blob/main/docs/DATABRICKS_DEPLOYMENT.md
+# MAGIC - Quick Start: https://github.com/TavnerJC/cuda-healthcheck-1.0/blob/main/docs/DATABRICKS_QUICK_START.md
