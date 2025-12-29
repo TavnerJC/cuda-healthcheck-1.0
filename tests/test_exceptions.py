@@ -140,7 +140,11 @@ class TestExceptionCatching:
         """Test that catching base class catches derived exceptions."""
         exceptions_raised = []
 
-        for exc_class in [CudaDetectionError, DatabricksConnectionError, ClusterNotFoundError]:
+        for exc_class in [
+            CudaDetectionError,
+            DatabricksConnectionError,
+            ClusterNotFoundError,
+        ]:
             try:
                 raise exc_class("Test error")
             except CudaHealthcheckError as e:
@@ -204,7 +208,9 @@ class TestExceptionUsageScenarios:
 
         def connect_to_databricks(host, token):
             if not token:
-                raise DatabricksConnectionError("DATABRICKS_TOKEN environment variable not set")
+                raise DatabricksConnectionError(
+                    "DATABRICKS_TOKEN environment variable not set"
+                )
 
         with pytest.raises(DatabricksConnectionError) as exc_info:
             connect_to_databricks("https://example.com", None)

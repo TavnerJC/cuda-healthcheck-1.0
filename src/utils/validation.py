@@ -408,7 +408,9 @@ def validate_and_sanitize_input(
 
     # Allowed values check
     if allowed_values and value not in allowed_values:
-        raise CudaHealthcheckError(f"Invalid value: must be one of {allowed_values}, got {value}")
+        raise CudaHealthcheckError(
+            f"Invalid value: must be one of {allowed_values}, got {value}"
+        )
 
     return value
 

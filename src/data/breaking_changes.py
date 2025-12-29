@@ -430,14 +430,17 @@ class BreakingChangesDatabase:
                     if change.applies_to_compute_capabilities:
                         if (
                             compute_capability
-                            and compute_capability in change.applies_to_compute_capabilities
+                            and compute_capability
+                            in change.applies_to_compute_capabilities
                         ):
                             applicable_changes[change.severity].append(asdict(change))
                     else:
                         applicable_changes[change.severity].append(asdict(change))
 
         # Check CUDA-level changes (not library specific)
-        cuda_changes = [c for c in self.breaking_changes if c.affected_library == "cuda"]
+        cuda_changes = [
+            c for c in self.breaking_changes if c.affected_library == "cuda"
+        ]
         for change in cuda_changes:
             if change.applies_to_compute_capabilities:
                 if (
@@ -452,7 +455,9 @@ class BreakingChangesDatabase:
         info_count = len(applicable_changes["INFO"])
 
         # Score: 100 - (criticals * 30) - (warnings * 10) - (info * 2)
-        score = max(0, 100 - (critical_count * 30) - (warning_count * 10) - (info_count * 2))
+        score = max(
+            0, 100 - (critical_count * 30) - (warning_count * 10) - (info_count * 2)
+        )
 
         return {
             "compatibility_score": score,
@@ -485,7 +490,9 @@ class BreakingChangesDatabase:
         elif score >= 70:
             return "ACCEPTABLE: Environment is mostly compatible. Review warnings."
         elif score >= 50:
-            return "CAUTION: Environment has compatibility concerns. Testing recommended."
+            return (
+                "CAUTION: Environment has compatibility concerns. Testing recommended."
+            )
         else:
             return "HIGH RISK: Environment has significant compatibility issues. Migration needed."
 

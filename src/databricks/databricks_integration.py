@@ -7,7 +7,7 @@ clusters and storing results in Delta tables.
 
 import os
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from ..cuda_detector.detector import CUDADetector, CUDAEnvironment
@@ -144,7 +144,9 @@ class DatabricksHealthchecker:
         # Try to get cluster ID from Spark context
         if HAS_DBUTILS:
             try:
-                notebook_context = dbutils.notebook.entry_point.getDbutils().notebook().getContext()
+                notebook_context = (
+                    dbutils.notebook.entry_point.getDbutils().notebook().getContext()
+                )
                 metadata["cluster_id"] = notebook_context.tags().get("clusterId")
                 metadata["cluster_name"] = notebook_context.tags().get("clusterName")
             except Exception as e:
@@ -186,7 +188,9 @@ class DatabricksHealthchecker:
             # Step 3: Analyze compatibility
             logger.info("Analyzing compatibility...")
             cuda_version = (
-                environment.cuda_driver_version or environment.cuda_runtime_version or "Unknown"
+                environment.cuda_driver_version
+                or environment.cuda_runtime_version
+                or "Unknown"
             )
 
             compute_capability = None
@@ -220,7 +224,9 @@ class DatabricksHealthchecker:
             recommendations = self._generate_recommendations(environment, compatibility)
 
             # Step 6: Create result
-            healthcheck_id = f"healthcheck-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
+            healthcheck_id = (
+                f"healthcheck-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
+            )
 
             result = HealthcheckResult(
                 healthcheck_id=healthcheck_id,
@@ -271,7 +277,7 @@ class DatabricksHealthchecker:
                 ),
                 "status": "error",
                 "error": str(e),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
     def _generate_recommendations(
@@ -296,7 +302,9 @@ class DatabricksHealthchecker:
         # Check each library
         for lib in environment.libraries:
             if not lib.is_compatible:
-                recommendations.append(f"❌ {lib.name} is not CUDA-compatible - check installation")
+                recommendations.append(
+                    f"❌ {lib.name} is not CUDA-compatible - check installation"
+                )
             if lib.warnings:
                 for warning in lib.warnings:
                     recommendations.append(f"⚠️ {lib.name}: {warning}")
@@ -319,7 +327,9 @@ class DatabricksHealthchecker:
         if compatibility["compatibility_score"] >= 90:
             recommendations.append("✓ Environment is healthy and well-configured")
         elif compatibility["compatibility_score"] >= 70:
-            recommendations.append("📋 Review warnings and test thoroughly before production")
+            recommendations.append(
+                "📋 Review warnings and test thoroughly before production"
+            )
         else:
             recommendations.append(
                 "🔧 Significant compatibility issues detected - migration recommended"

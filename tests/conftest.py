@@ -203,8 +203,30 @@ def mock_cuda_detector(mock_cuda_environment):
             assert env["cuda_driver_version"] is not None
         ```
     """
+    from dataclasses import dataclass
+    from typing import Any, List
+
+    @dataclass
+    class MockEnvironment:
+        cuda_runtime_version: str
+        cuda_driver_version: str
+        nvcc_version: str
+        gpus: List[Any]
+        libraries: List[Any]
+        breaking_changes: List[Any]
+        timestamp: str
+
     mock_detector = MagicMock()
-    mock_detector.detect_environment.return_value = mock_cuda_environment
+    mock_env = MockEnvironment(
+        cuda_runtime_version=mock_cuda_environment["cuda_runtime_version"],
+        cuda_driver_version=mock_cuda_environment["cuda_driver_version"],
+        nvcc_version=mock_cuda_environment["nvcc_version"],
+        gpus=mock_cuda_environment["gpus"],
+        libraries=mock_cuda_environment["libraries"],
+        breaking_changes=mock_cuda_environment["breaking_changes"],
+        timestamp=mock_cuda_environment["timestamp"],
+    )
+    mock_detector.detect_environment.return_value = mock_env
     mock_detector.detect_nvidia_smi.return_value = {
         "success": True,
         "driver_version": "550.54.15",
@@ -424,3 +446,5 @@ def setup_test_environment(monkeypatch):
     monkeypatch.setenv("DATABRICKS_HOST", "https://test.databricks.com")
     monkeypatch.setenv("DATABRICKS_TOKEN", "dapi_test_token_123")
     monkeypatch.setenv("DATABRICKS_WAREHOUSE_ID", "test-warehouse-123")
+    # Ensure DATABRICKS_RUNTIME_VERSION is not set by default
+    monkeypatch.delenv("DATABRICKS_RUNTIME_VERSION", raising=False)

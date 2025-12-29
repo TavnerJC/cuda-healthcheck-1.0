@@ -54,14 +54,15 @@ def retry_on_failure(
                     return func(*args, **kwargs)
                 except exceptions as e:
                     attempt += 1
+                    func_name = getattr(func, "__name__", repr(func))
                     if attempt >= max_attempts:
                         logger.error(
-                            f"{func.__name__} failed after {max_attempts} attempts: {e}",
+                            f"{func_name} failed after {max_attempts} attempts: {e}",
                             exc_info=True,
                         )
                         raise
                     logger.warning(
-                        f"{func.__name__} attempt {attempt} failed, "
+                        f"{func_name} attempt {attempt} failed, "
                         f"retrying in {current_delay:.1f}s: {e}"
                     )
                     time.sleep(current_delay)
@@ -108,8 +109,9 @@ def retry_with_timeout(
 
     while attempt < max_attempts:
         elapsed = time.time() - start_time
+        func_name = getattr(func, "__name__", repr(func))
         if elapsed >= timeout:
-            logger.error(f"{func.__name__} timed out after {elapsed:.1f}s")
+            logger.error(f"{func_name} timed out after {elapsed:.1f}s")
             return None
 
         try:
@@ -118,19 +120,20 @@ def retry_with_timeout(
             attempt += 1
             if attempt >= max_attempts:
                 logger.error(
-                    f"{func.__name__} failed after {max_attempts} attempts: {e}",
+                    f"{func_name} failed after {max_attempts} attempts: {e}",
                     exc_info=True,
                 )
                 return None
 
             remaining_time = timeout - elapsed
             if remaining_time <= 0:
-                logger.error(f"{func.__name__} timed out")
+                logger.error(f"{func_name} timed out")
                 return None
 
             sleep_time = min(delay, remaining_time)
             logger.warning(
-                f"{func.__name__} attempt {attempt} failed, " f"retrying in {sleep_time:.1f}s: {e}"
+                f"{func_name} attempt {attempt} failed, "
+                f"retrying in {sleep_time:.1f}s: {e}"
             )
             time.sleep(sleep_time)
             delay *= 2  # Exponential backoff

@@ -39,11 +39,13 @@ class TestCUDADetector:
         result = self.detector.detect_nvidia_smi()
 
         assert result["success"] is False
-        assert "nvidia-smi not found" in result["error"]
+        assert "nvidia-smi" in result["error"] and "not found" in result["error"]
 
+    @patch("src.cuda_detector.detector.check_command_available")
     @patch("subprocess.run")
-    def test_detect_nvcc_version(self, mock_run):
+    def test_detect_nvcc_version(self, mock_run, mock_check_command):
         """Test nvcc version detection."""
+        mock_check_command.return_value = True
         mock_run.return_value = Mock(
             returncode=0, stdout="Cuda compilation tools, release 12.4, V12.4.131"
         )

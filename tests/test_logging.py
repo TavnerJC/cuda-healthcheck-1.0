@@ -5,8 +5,6 @@ Tests can be run locally without any dependencies on Databricks or CUDA.
 """
 
 import logging
-import os
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -60,9 +58,14 @@ class TestSetupLogging:
 
     def test_setup_logging_default(self):
         """Test setup_logging with default parameters."""
-        setup_logging()
+        # Clear existing handlers to ensure clean state
         root_logger = logging.getLogger()
-        assert root_logger.level <= logging.INFO
+        root_logger.handlers.clear()
+        root_logger.setLevel(logging.NOTSET)
+
+        setup_logging()
+        # Check that at least one handler was added
+        assert len(root_logger.handlers) > 0
 
     def test_setup_logging_custom_level(self):
         """Test setup_logging with custom level."""

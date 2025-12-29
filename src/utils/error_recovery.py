@@ -73,7 +73,10 @@ class GracefulDegradation:
             if value is not None:
                 logger.info(f"{operation_name} succeeded with primary method")
                 return DetectionResult(
-                    value=value, success=True, method_used="primary", fallback_used=False
+                    value=value,
+                    success=True,
+                    method_used="primary",
+                    fallback_used=False,
                 )
         except Exception as e:
             error_msg = f"Primary method failed: {e}"
@@ -88,7 +91,10 @@ class GracefulDegradation:
                 if value is not None:
                     logger.info(f"{operation_name} succeeded with fallback method {i}")
                     return DetectionResult(
-                        value=value, success=True, method_used=f"fallback_{i}", fallback_used=True
+                        value=value,
+                        success=True,
+                        method_used=f"fallback_{i}",
+                        fallback_used=True,
                     )
             except Exception as e:
                 error_msg = f"Fallback {i} failed: {e}"
@@ -96,7 +102,9 @@ class GracefulDegradation:
                 self.failures.append(error_msg)
 
         # All failed, use default
-        logger.warning(f"{operation_name} failed all methods, using default: {default_value}")
+        logger.warning(
+            f"{operation_name} failed all methods, using default: {default_value}"
+        )
         return DetectionResult(
             value=default_value,
             success=False,
@@ -163,7 +171,9 @@ class PartialResultCollector:
         }
 
 
-def safe_detection(func: Callable[[], T], default: T, error_msg: str = "Detection failed") -> T:
+def safe_detection(
+    func: Callable[[], T], default: T, error_msg: str = "Detection failed"
+) -> T:
     """
     Safely run a detection function with fallback to default.
 
@@ -293,7 +303,10 @@ class ErrorRecoveryContext:
 
 
 def validate_or_fallback(
-    value: Any, validator: Callable[[Any], bool], fallback: Any, value_name: str = "value"
+    value: Any,
+    validator: Callable[[Any], bool],
+    fallback: Any,
+    value_name: str = "value",
 ) -> Any:
     """
     Validate a value and return fallback if validation fails.
@@ -323,10 +336,14 @@ def validate_or_fallback(
         if validator(value):
             return value
         else:
-            logger.warning(f"{value_name} validation failed, using fallback: {fallback}")
+            logger.warning(
+                f"{value_name} validation failed, using fallback: {fallback}"
+            )
             return fallback
     except Exception as e:
-        logger.warning(f"Error validating {value_name}: {e}, using fallback: {fallback}")
+        logger.warning(
+            f"Error validating {value_name}: {e}, using fallback: {fallback}"
+        )
         return fallback
 
 

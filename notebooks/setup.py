@@ -418,3 +418,4 @@ print(f"  SELECT * FROM {catalog}.{schema}.{table}")
 # MAGIC - Verify setup after Databricks runtime upgrades
 
 
+

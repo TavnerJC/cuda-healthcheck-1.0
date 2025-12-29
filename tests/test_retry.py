@@ -69,7 +69,9 @@ class TestRetryOnFailure:
             call_times.append(time.time())
             raise Exception("Test failure")
 
-        decorated = retry_on_failure(max_attempts=3, delay=0.1, backoff=2.0)(track_time_function)
+        decorated = retry_on_failure(max_attempts=3, delay=0.1, backoff=2.0)(
+            track_time_function
+        )
 
         with pytest.raises(Exception):
             decorated()
@@ -141,7 +143,9 @@ class TestRetryWithTimeout:
                 raise Exception("Temporary failure")
             return "success"
 
-        result = retry_with_timeout(eventually_succeeds, timeout=5.0, max_attempts=5, delay=0.01)
+        result = retry_with_timeout(
+            eventually_succeeds, timeout=5.0, max_attempts=5, delay=0.01
+        )
 
         assert result == "success"
         assert call_count[0] == 3
@@ -153,7 +157,9 @@ class TestRetryWithTimeout:
             time.sleep(0.2)
             raise Exception("Too slow")
 
-        result = retry_with_timeout(slow_function, timeout=0.3, max_attempts=10, delay=0.1)
+        result = retry_with_timeout(
+            slow_function, timeout=0.3, max_attempts=10, delay=0.1
+        )
 
         # Should return None on timeout
         assert result is None
@@ -177,7 +183,9 @@ class TestRetryWithTimeout:
             time.sleep(0.1)
             raise Exception("Test failure")
 
-        result = retry_with_timeout(delayed_function, timeout=0.25, max_attempts=10, delay=0.05)
+        result = retry_with_timeout(
+            delayed_function, timeout=0.25, max_attempts=10, delay=0.05
+        )
 
         elapsed = time.time() - start_time
         assert result is None
@@ -189,12 +197,15 @@ class TestRetryWithTimeout:
         def raises_value_error():
             raise ValueError("Not caught")
 
-        result = retry_with_timeout(
-            raises_value_error, timeout=5.0, max_attempts=3, delay=0.01, exceptions=(IOError,)
-        )
-
-        # ValueError not caught, should return None
-        assert result is None
+        # ValueError is not in the exceptions tuple, so it should propagate
+        with pytest.raises(ValueError, match="Not caught"):
+            retry_with_timeout(
+                raises_value_error,
+                timeout=5.0,
+                max_attempts=3,
+                delay=0.01,
+                exceptions=(IOError,),
+            )
 
 
 class TestRetryIntegration:

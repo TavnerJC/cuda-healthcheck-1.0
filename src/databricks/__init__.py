@@ -26,11 +26,7 @@ Example:
     ```
 """
 
-from .connector import (
-    ClusterInfo,
-    DatabricksConnector,
-    is_databricks_environment,
-)
+from .connector import ClusterInfo, DatabricksConnector, is_databricks_environment
 from .databricks_integration import (
     DatabricksHealthchecker,
     HealthcheckResult,

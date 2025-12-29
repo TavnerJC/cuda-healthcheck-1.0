@@ -38,7 +38,9 @@ except ImportError:
     WorkspaceClient = None
     ClusterDetails = None
     State = None
-    logger.warning("Databricks SDK not available. Install with: pip install databricks-sdk")
+    logger.warning(
+        "Databricks SDK not available. Install with: pip install databricks-sdk"
+    )
 
 
 @dataclass
@@ -190,7 +192,9 @@ class DatabricksConnector:
             if "permission" in error_str or "unauthorized" in error_str:
                 error_msg = f"Permission denied accessing cluster {cluster_id}"
                 logger.error(error_msg)
-                raise DatabricksConnectionError(f"{error_msg}. Check token permissions.")
+                raise DatabricksConnectionError(
+                    f"{error_msg}. Check token permissions."
+                )
 
             error_msg = f"Failed to get cluster info for {cluster_id}: {e}"
             logger.error(error_msg, exc_info=True)
@@ -238,7 +242,9 @@ class DatabricksConnector:
                     driver_node_type_id=cluster.driver_node_type_id,
                     num_workers=cluster.num_workers or 0,
                     spark_conf=dict(cluster.spark_conf) if cluster.spark_conf else {},
-                    custom_tags=dict(cluster.custom_tags) if cluster.custom_tags else {},
+                    custom_tags=(
+                        dict(cluster.custom_tags) if cluster.custom_tags else {}
+                    ),
                 )
 
                 # Filter GPU clusters if requested
@@ -309,7 +315,9 @@ class DatabricksConnector:
 
             time.sleep(10)
 
-        raise ClusterNotRunningError(f"Cluster {cluster_id} did not start within {timeout} seconds")
+        raise ClusterNotRunningError(
+            f"Cluster {cluster_id} did not start within {timeout} seconds"
+        )
 
     def read_delta_table(
         self,
@@ -332,7 +340,9 @@ class DatabricksConnector:
         try:
             warehouse_id = os.getenv("DATABRICKS_WAREHOUSE_ID")
             if not warehouse_id:
-                raise DeltaTableError("DATABRICKS_WAREHOUSE_ID environment variable not set")
+                raise DeltaTableError(
+                    "DATABRICKS_WAREHOUSE_ID environment variable not set"
+                )
 
             # Validate table_path format (catalog.schema.table)
             if not validate_table_path(table_path):
@@ -376,7 +386,9 @@ class DatabricksConnector:
         try:
             warehouse_id = os.getenv("DATABRICKS_WAREHOUSE_ID")
             if not warehouse_id:
-                raise DeltaTableError("DATABRICKS_WAREHOUSE_ID environment variable not set")
+                raise DeltaTableError(
+                    "DATABRICKS_WAREHOUSE_ID environment variable not set"
+                )
 
             # In a real implementation, this would use Spark DataFrame API
             # This is a placeholder showing the API structure

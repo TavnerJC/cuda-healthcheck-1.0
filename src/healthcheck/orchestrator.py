@@ -7,7 +7,7 @@ Provides both a class-based orchestrator and a simple function interface.
 
 import json
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from ..cuda_detector.detector import CUDADetector, CUDAEnvironment
@@ -176,7 +176,9 @@ class HealthcheckOrchestrator:
         # Step 3: Analyze compatibility
         logger.info("Analyzing compatibility...")
         cuda_version = (
-            environment.cuda_driver_version or environment.cuda_runtime_version or "Unknown"
+            environment.cuda_driver_version
+            or environment.cuda_runtime_version
+            or "Unknown"
         )
 
         compute_capability = None
@@ -201,7 +203,9 @@ class HealthcheckOrchestrator:
         recommendations = self._generate_recommendations(environment, compatibility)
 
         # Step 6: Create report
-        healthcheck_id = f"healthcheck-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
+        healthcheck_id = (
+            f"healthcheck-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
+        )
 
         report = HealthcheckReport(
             healthcheck_id=healthcheck_id,
@@ -257,7 +261,9 @@ class HealthcheckOrchestrator:
         # Check each library
         for lib in environment.libraries:
             if not lib.is_compatible:
-                recommendations.append(f"❌ {lib.name} is not CUDA-compatible - check installation")
+                recommendations.append(
+                    f"❌ {lib.name} is not CUDA-compatible - check installation"
+                )
             if lib.warnings:
                 for warning in lib.warnings:
                     recommendations.append(f"⚠️ {lib.name}: {warning}")
@@ -276,21 +282,29 @@ class HealthcheckOrchestrator:
                         f"✓ Latest GPU detected ({gpu.name}, CC {gpu.compute_capability})"
                     )
             except ValueError:
-                logger.warning(f"Could not parse compute capability: {gpu.compute_capability}")
+                logger.warning(
+                    f"Could not parse compute capability: {gpu.compute_capability}"
+                )
 
         # General recommendations
         score = compatibility["compatibility_score"]
         if score >= 90:
             recommendations.append("✓ Environment is healthy and well-configured")
         elif score >= 70:
-            recommendations.append("📋 Review warnings and test thoroughly before production")
+            recommendations.append(
+                "📋 Review warnings and test thoroughly before production"
+            )
         else:
-            recommendations.append("🔧 Significant compatibility issues - migration recommended")
+            recommendations.append(
+                "🔧 Significant compatibility issues - migration recommended"
+            )
 
         return recommendations
 
     def save_report_json(
-        self, report: Optional[HealthcheckReport] = None, filepath: str = "healthcheck_report.json"
+        self,
+        report: Optional[HealthcheckReport] = None,
+        filepath: str = "healthcheck_report.json",
     ) -> None:
         """
         Save healthcheck report to JSON file.

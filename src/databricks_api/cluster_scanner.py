@@ -44,7 +44,9 @@ class ClusterHealthcheck:
 class ClusterScanner:
     """Scans Databricks clusters for CUDA compatibility issues."""
 
-    def __init__(self, workspace_url: Optional[str] = None, token: Optional[str] = None):
+    def __init__(
+        self, workspace_url: Optional[str] = None, token: Optional[str] = None
+    ):
         """
         Initialize the cluster scanner.
 
@@ -125,7 +127,9 @@ except Exception as e:
 
         # Create notebook in workspace
         self.client.workspace.mkdirs(notebook_path)
-        self.client.workspace.upload(notebook_path, notebook_content.encode(), format="SOURCE")
+        self.client.workspace.upload(
+            notebook_path, notebook_content.encode(), format="SOURCE"
+        )
 
         return notebook_path
 
@@ -180,7 +184,9 @@ except Exception as e:
 
                         if output.notebook_output and output.notebook_output.result:
                             try:
-                                result: Dict[str, Any] = json.loads(output.notebook_output.result)
+                                result: Dict[str, Any] = json.loads(
+                                    output.notebook_output.result
+                                )
                                 return result
                             except json.JSONDecodeError:
                                 return {
@@ -357,7 +363,9 @@ except Exception as e:
         cuda_versions: Dict[str, int] = {}
         for result in results:
             if result.cuda_version:
-                cuda_versions[result.cuda_version] = cuda_versions.get(result.cuda_version, 0) + 1
+                cuda_versions[result.cuda_version] = (
+                    cuda_versions.get(result.cuda_version, 0) + 1
+                )
 
         # Count breaking changes
         total_breaking_changes = sum(len(r.breaking_changes) for r in results)
