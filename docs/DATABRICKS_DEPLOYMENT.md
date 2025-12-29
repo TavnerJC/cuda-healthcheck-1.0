@@ -2,7 +2,20 @@
 
 This guide explains how to deploy and run the CUDA Healthcheck Tool on Databricks GPU clusters.
 
+**Supports:**
+- ✅ **Classic ML Runtime** clusters (driver + workers)
+- ✅ **Serverless GPU Compute** (single-user, no SparkContext)
+
+---
+
 ## 🎯 Quick Start
+
+### Choose Your Runtime:
+
+**Classic ML Runtime** → Use `databricks_healthcheck.py`  
+**Serverless GPU Compute** → Use `databricks_healthcheck_serverless.py`
+
+Not sure? The tool **auto-detects** and uses the right method!
 
 ### 1. Import the Notebook
 
@@ -38,6 +51,90 @@ Driver Type: i3.xlarge (no GPU needed)
 1. Attach the notebook to your GPU cluster
 2. Run all cells sequentially
 3. Review the output
+
+---
+
+## 📊 Classic vs Serverless: Key Differences
+
+### Classic ML Runtime Clusters
+
+**Architecture:**
+```
+┌─────────────────┐
+│  Driver Node    │  ← Notebooks run here
+│  (CPU only)     │  ← Package installed here
+└────────┬────────┘
+         │
+    ┌────┴────┬─────────┬─────────┐
+    │         │         │         │
+┌───▼────┐ ┌──▼─────┐ ┌─▼──────┐ ┌─▼──────┐
+│Worker 1│ │Worker 2│ │Worker 3│ │Worker 4│ ← GPUs here!
+│(GPU)   │ │(GPU)   │ │(GPU)   │ │(GPU)   │
+└────────┘ └────────┘ └────────┘ └────────┘
+```
+
+**Characteristics:**
+- ✅ Multiple worker nodes with GPUs
+- ✅ Distributed Spark execution
+- ✅ `sparkContext` access available
+- ✅ Scales to many GPUs
+- ⚠️ Requires Spark-based GPU detection
+
+**Use Case:** Large-scale distributed ML training
+
+---
+
+### Serverless GPU Compute
+
+**Architecture:**
+```
+┌─────────────────────┐
+│  Single Process     │  ← Everything runs here
+│  (with GPU)         │  ← Direct GPU access
+│  No SparkContext    │  ← Simplified model
+└─────────────────────┘
+```
+
+**Characteristics:**
+- ✅ Single-user execution
+- ✅ GPU directly accessible
+- ✅ Faster startup
+- ✅ Simpler architecture
+- ❌ No `sparkContext` access
+- ⚠️ Limited to single GPU per process
+
+**Limitations:**
+- Cannot access `sc = spark.sparkContext`
+- Cannot use RDD operations
+- No distributed execution patterns
+
+**Use Case:** Single-user notebooks, rapid prototyping
+
+**Learn More:** [Databricks Serverless Limitations](https://docs.databricks.com/release-notes/serverless.html#limitations)
+
+---
+
+## 🤖 Auto-Detection (Recommended)
+
+The tool **automatically detects** your environment and uses the correct method:
+
+```python
+from cuda_healthcheck.databricks import detect_gpu_auto, is_serverless_environment
+
+# Check environment
+if is_serverless_environment():
+    print("📍 Running on Serverless GPU Compute")
+else:
+    print("📍 Running on Classic ML Runtime")
+
+# Auto-detect GPUs (works everywhere!)
+gpu_info = detect_gpu_auto()
+
+if gpu_info['success']:
+    print(f"✅ Found {gpu_info.get('gpu_count', 0)} GPU(s)")
+    print(f"   Method: {gpu_info['method']}")  # 'direct' or 'distributed'
+    print(f"   Environment: {gpu_info['environment']}")  # 'serverless' or 'classic'
+```
 
 ---
 
