@@ -271,18 +271,18 @@ def detect_gpu_auto() -> Dict[str, Any]:
 
     Returns:
         Dictionary with GPU information and detection metadata.
-        
+
         Standard keys (present in all return dictionaries):
         - success (bool): True if detection succeeded
         - method (str): 'direct' or 'distributed'
         - environment (str): 'serverless' or 'classic'
         - gpu_count (int): Number of GPUs detected
         - error (str or None): Error message if detection failed
-        
+
         Additional keys for serverless (direct detection):
         - hostname (str): Current host name
         - gpus (list): List of GPU dictionaries with detailed info
-        
+
         Additional keys for classic (distributed detection):
         - total_executors (int): Number of Spark executors
         - worker_node_count (int): Number of unique worker nodes
