@@ -51,17 +51,13 @@ class TestBreakingChangesDatabaseInitialization:
     def test_database_has_pytorch_changes(self):
         """Test that database includes PyTorch changes."""
         db = BreakingChangesDatabase()
-        pytorch_changes = [
-            c for c in db.breaking_changes if c.affected_library == "pytorch"
-        ]
+        pytorch_changes = [c for c in db.breaking_changes if c.affected_library == "pytorch"]
         assert len(pytorch_changes) > 0
 
     def test_database_has_tensorflow_changes(self):
         """Test that database includes TensorFlow changes."""
         db = BreakingChangesDatabase()
-        tf_changes = [
-            c for c in db.breaking_changes if c.affected_library == "tensorflow"
-        ]
+        tf_changes = [c for c in db.breaking_changes if c.affected_library == "tensorflow"]
         assert len(tf_changes) > 0
 
     def test_database_has_cudf_changes(self):

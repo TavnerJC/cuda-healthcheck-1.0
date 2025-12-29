@@ -104,9 +104,7 @@ class CUDADetector:
             )
 
             if result.returncode != 0:
-                error_msg = (
-                    f"nvidia-smi returned non-zero exit code: {result.returncode}"
-                )
+                error_msg = f"nvidia-smi returned non-zero exit code: {result.returncode}"
                 logger.error(f"{error_msg}, stderr: {result.stderr}")
                 return {"error": error_msg, "details": result.stderr, "success": False}
 
@@ -124,9 +122,7 @@ class CUDADetector:
                     cuda_version = match.group(1)
                     logger.info(f"Detected CUDA version: {cuda_version}")
                 else:
-                    logger.warning(
-                        "Could not parse CUDA version from nvidia-smi output"
-                    )
+                    logger.warning("Could not parse CUDA version from nvidia-smi output")
 
             # Parse GPU information with enhanced error handling
             gpus = []
@@ -148,17 +144,13 @@ class CUDADetector:
                             float(parts[2]) if parts[2] else 0, default=0
                         )
                     except ValueError:
-                        logger.warning(
-                            f"Line {line_num}: Could not parse memory: {parts[2]}"
-                        )
+                        logger.warning(f"Line {line_num}: Could not parse memory: {parts[2]}")
                         memory_mb = 0
 
                     try:
                         gpu_index = safe_int_conversion(parts[4], default=line_num - 1)
                     except ValueError:
-                        logger.warning(
-                            f"Line {line_num}: Could not parse GPU index: {parts[4]}"
-                        )
+                        logger.warning(f"Line {line_num}: Could not parse GPU index: {parts[4]}")
                         gpu_index = line_num - 1
 
                     gpu_info = GPUInfo(
@@ -241,9 +233,7 @@ class CUDADetector:
                         logger.debug(f"Found {version_file}, attempting to parse...")
                         with open(version_file, "r") as f:
                             version_data = json.load(f)
-                            runtime_version = version_data.get("cuda", {}).get(
-                                "version"
-                            )
+                            runtime_version = version_data.get("cuda", {}).get("version")
                             if runtime_version:
                                 logger.info(
                                     f"Detected CUDA runtime from version.json: {runtime_version}"
@@ -260,9 +250,7 @@ class CUDADetector:
                         logger.debug(f"Found {version_txt}, attempting to parse...")
                         with open(version_txt, "r") as f:
                             content = f.read().strip()
-                            match = re.search(
-                                r"CUDA Version\s+(\d+\.\d+\.\d+)", content
-                            )
+                            match = re.search(r"CUDA Version\s+(\d+\.\d+\.\d+)", content)
                             if match:
                                 runtime_version = match.group(1)
                                 logger.info(
@@ -278,9 +266,7 @@ class CUDADetector:
                     match = re.search(r"cuda-(\d+\.\d+)", cuda_path)
                     if match:
                         runtime_version = match.group(1)
-                        logger.info(
-                            f"Detected CUDA runtime from path: {runtime_version}"
-                        )
+                        logger.info(f"Detected CUDA runtime from path: {runtime_version}")
                         return runtime_version
 
             except PermissionError:
@@ -320,9 +306,7 @@ class CUDADetector:
                 else:
                     logger.warning("nvcc command succeeded but could not parse version")
             else:
-                logger.warning(
-                    f"nvcc command failed with exit code {result.returncode}"
-                )
+                logger.warning(f"nvcc command failed with exit code {result.returncode}")
 
             return None
 
@@ -368,9 +352,7 @@ class CUDADetector:
                     try:
                         cuda_major = int(cuda_version.split(".")[0])
                         if cuda_major >= 13:
-                            warning_msg = (
-                                "PyTorch may need rebuild for CUDA 13.x compatibility"
-                            )
+                            warning_msg = "PyTorch may need rebuild for CUDA 13.x compatibility"
                             warnings.append(warning_msg)
                             logger.warning(warning_msg)
                     except (ValueError, IndexError) as e:

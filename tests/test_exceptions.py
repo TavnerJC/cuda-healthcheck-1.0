@@ -208,9 +208,7 @@ class TestExceptionUsageScenarios:
 
         def connect_to_databricks(host, token):
             if not token:
-                raise DatabricksConnectionError(
-                    "DATABRICKS_TOKEN environment variable not set"
-                )
+                raise DatabricksConnectionError("DATABRICKS_TOKEN environment variable not set")
 
         with pytest.raises(DatabricksConnectionError) as exc_info:
             connect_to_databricks("https://example.com", None)

@@ -132,8 +132,7 @@ def retry_with_timeout(
 
             sleep_time = min(delay, remaining_time)
             logger.warning(
-                f"{func_name} attempt {attempt} failed, "
-                f"retrying in {sleep_time:.1f}s: {e}"
+                f"{func_name} attempt {attempt} failed, " f"retrying in {sleep_time:.1f}s: {e}"
             )
             time.sleep(sleep_time)
             delay *= 2  # Exponential backoff

@@ -169,9 +169,7 @@ class TestAnalyzeBreakingChanges:
             }
         ]
 
-        result = orchestrator.analyze_breaking_changes(
-            libraries, "12.4", compute_capability="8.0"
-        )
+        result = orchestrator.analyze_breaking_changes(libraries, "12.4", compute_capability="8.0")
 
         assert "compatibility_score" in result
 
@@ -288,9 +286,7 @@ class TestGenerateReport:
 
     @patch("src.healthcheck.orchestrator.CUDADetector")
     @patch("src.healthcheck.orchestrator.BreakingChangesDatabase")
-    def test_generate_report_stores_last_report(
-        self, mock_db_class, mock_detector_class
-    ):
+    def test_generate_report_stores_last_report(self, mock_db_class, mock_detector_class):
         """Test that generate_report stores the report."""
         mock_detector = MagicMock()
         mock_detector.detect_environment.return_value = MockEnvironment()
@@ -417,9 +413,7 @@ class TestRecommendationsGeneration:
 
     @patch("src.healthcheck.orchestrator.CUDADetector")
     @patch("src.healthcheck.orchestrator.BreakingChangesDatabase")
-    def test_recommendations_include_critical_warning(
-        self, mock_db_class, mock_detector_class
-    ):
+    def test_recommendations_include_critical_warning(self, mock_db_class, mock_detector_class):
         """Test that critical issues generate warning recommendation."""
         mock_detector = MagicMock()
         mock_detector.detect_environment.return_value = MockEnvironment()

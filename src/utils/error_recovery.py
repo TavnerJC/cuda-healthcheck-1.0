@@ -102,9 +102,7 @@ class GracefulDegradation:
                 self.failures.append(error_msg)
 
         # All failed, use default
-        logger.warning(
-            f"{operation_name} failed all methods, using default: {default_value}"
-        )
+        logger.warning(f"{operation_name} failed all methods, using default: {default_value}")
         return DetectionResult(
             value=default_value,
             success=False,
@@ -171,9 +169,7 @@ class PartialResultCollector:
         }
 
 
-def safe_detection(
-    func: Callable[[], T], default: T, error_msg: str = "Detection failed"
-) -> T:
+def safe_detection(func: Callable[[], T], default: T, error_msg: str = "Detection failed") -> T:
     """
     Safely run a detection function with fallback to default.
 
@@ -336,14 +332,10 @@ def validate_or_fallback(
         if validator(value):
             return value
         else:
-            logger.warning(
-                f"{value_name} validation failed, using fallback: {fallback}"
-            )
+            logger.warning(f"{value_name} validation failed, using fallback: {fallback}")
             return fallback
     except Exception as e:
-        logger.warning(
-            f"Error validating {value_name}: {e}, using fallback: {fallback}"
-        )
+        logger.warning(f"Error validating {value_name}: {e}, using fallback: {fallback}")
         return fallback
 
 

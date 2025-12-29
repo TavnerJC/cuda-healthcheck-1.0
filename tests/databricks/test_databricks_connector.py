@@ -54,9 +54,7 @@ class TestDatabricksConnector:
         assert connector.workspace_url == "https://test.databricks.com"
         assert connector.token == "test_token_1234567890"
 
-    def test_get_cluster_info_success(
-        self, mock_databricks_connector, mock_cluster_info
-    ):
+    def test_get_cluster_info_success(self, mock_databricks_connector, mock_cluster_info):
         """Test successful cluster info retrieval."""
         cluster_info = mock_databricks_connector.get_cluster_info("test-cluster-123")
         assert cluster_info.cluster_id == mock_cluster_info["cluster_id"]
