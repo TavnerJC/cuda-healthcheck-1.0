@@ -35,20 +35,39 @@ The tool provides multiple integration levels:
 
 ## 🔧 Installation
 
-### 1. Clone the repository
+### For Databricks (Recommended)
+
+**Quick Start - Import the Working Notebook:**
+
+1. In Databricks, go to **Workspace** → **Import**
+2. Select **URL**
+3. Paste: `https://raw.githubusercontent.com/TavnerJC/cuda-healthcheck-1.0/main/notebooks/databricks_healthcheck.py`
+4. Attach to a GPU cluster and run!
+
+📘 **See [Databricks Deployment Guide](docs/DATABRICKS_DEPLOYMENT.md) for detailed instructions**
+
+### For Local Development
+
+#### 1. Clone the repository
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/TavnerJC/cuda-healthcheck-1.0.git
 cd cuda-healthcheck
 ```
 
-### 2. Install dependencies
+#### 2. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Set up environment variables
+#### 3. Or install from GitHub directly
+
+```bash
+pip install git+https://github.com/TavnerJC/cuda-healthcheck-1.0.git
+```
+
+### 3. Set up environment variables (Local Development Only)
 
 See [docs/ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md) for comprehensive configuration guide.
 
@@ -69,12 +88,36 @@ DATABRICKS_WAREHOUSE_ID=warehouse_abc123
 CUDA_HEALTHCHECK_LOG_LEVEL=DEBUG
 ```
 
+> **Note:** In Databricks notebooks, credentials are auto-configured. No environment variables needed!
+
 ## 📖 Quick Start
 
-### 1. Simple Healthcheck
+### Databricks (Recommended)
+
+**Use the provided notebook** - it's production-ready and tested!
 
 ```python
-from src import run_complete_healthcheck
+# In Databricks notebook - Cell 1
+%pip install git+https://github.com/TavnerJC/cuda-healthcheck-1.0.git
+
+# Cell 2
+dbutils.library.restartPython()
+
+# Cell 3 - Detect GPUs on workers
+# (Full code in notebooks/databricks_healthcheck.py)
+
+# Cell 4 - Analyze breaking changes
+# (Full code in notebooks/databricks_healthcheck.py)
+```
+
+📘 **See [notebooks/databricks_healthcheck.py](notebooks/databricks_healthcheck.py) for complete working notebook**
+
+### Local Python
+
+#### 1. Simple Healthcheck
+
+```python
+from cuda_healthcheck import run_complete_healthcheck
 import json
 
 # Run complete healthcheck
@@ -82,22 +125,18 @@ result = run_complete_healthcheck()
 print(json.dumps(result, indent=2))
 ```
 
-### 2. Databricks Integration (Recommended)
+#### 2. Detailed Detection
 
 ```python
-# In Databricks notebook or with Databricks credentials
-from src.databricks import get_healthchecker
+from cuda_healthcheck import CUDADetector
 
-# Get configured healthchecker
-checker = get_healthchecker()
+detector = CUDADetector()
+environment = detector.detect_environment()
 
-# Run healthcheck on current cluster
-result = checker.run_healthcheck()
-
-# Display results in notebook
-checker.display_results()
-
-# Save to Delta table
+print(f"CUDA Driver: {environment.cuda_driver_version}")
+print(f"CUDA Runtime: {environment.cuda_runtime_version}")
+print(f"GPUs: {len(environment.gpus)}")
+```
 checker.export_results_to_delta("main.cuda_healthcheck.results")
 ```
 
