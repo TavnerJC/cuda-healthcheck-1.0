@@ -97,20 +97,30 @@ CUDA_HEALTHCHECK_LOG_LEVEL=DEBUG
 **Use the provided notebook** - it's production-ready and tested!
 
 ```python
-# In Databricks notebook - Cell 1
+# Cell 1: Install the package
 %pip install git+https://github.com/TavnerJC/cuda-healthcheck-1.0.git
-
-# Cell 2
-dbutils.library.restartPython()
-
-# Cell 3 - Detect GPUs on workers
-# (Full code in notebooks/databricks_healthcheck.py)
-
-# Cell 4 - Analyze breaking changes
-# (Full code in notebooks/databricks_healthcheck.py)
+# ⚠️ You'll see a red note: "Note: you may need to restart the kernel..." - This is NORMAL!
 ```
 
-📘 **See [notebooks/databricks_healthcheck.py](notebooks/databricks_healthcheck.py) for complete working notebook**
+```python
+# Cell 2: Restart Python (REQUIRED!)
+dbutils.library.restartPython()
+# ⏸️ Notebook will pause for ~10 seconds while Python restarts
+# ✅ After restart, the package is ready to use!
+```
+
+```python
+# Cell 3: Now you can import and use
+from cuda_healthcheck import run_complete_healthcheck
+import json
+
+result = run_complete_healthcheck()
+print(json.dumps(result, indent=2))
+```
+
+> **💡 Important:** After Cell 1 runs, you'll see a red warning note saying "you may need to restart the kernel". This is **expected and normal**! Just run Cell 2 to restart Python, then continue with Cell 3+. **Don't re-run Cell 1 after the restart.**
+
+📘 **See [notebooks/databricks_healthcheck.py](notebooks/databricks_healthcheck.py) or [notebooks/databricks_healthcheck_serverless.py](notebooks/databricks_healthcheck_serverless.py) for complete working notebooks**
 
 ### Local Python (After Installation)
 

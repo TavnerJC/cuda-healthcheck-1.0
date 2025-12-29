@@ -48,9 +48,18 @@ Driver Type: i3.xlarge (no GPU needed)
 
 ### 3. Run the Notebook
 
-1. Attach the notebook to your GPU cluster
-2. Run all cells sequentially
-3. Review the output
+1. Attach the notebook to your GPU cluster (or serverless compute)
+2. **Run Cell 1** (`%pip install git+https://...`)
+   - ⚠️ **You'll see a red note:** "Note: you may need to restart the kernel using %restart_python or dbutils.library.restartPython()"
+   - ✅ **This is NORMAL and EXPECTED!** It means the package installed successfully.
+3. **Run Cell 2** (`dbutils.library.restartPython()`)
+   - ⏸️ The notebook will pause for ~10 seconds while Python restarts
+   - ✅ After restart, all variables are cleared (expected behavior)
+   - ⚠️ **Do NOT re-run Cell 1** after the restart
+4. **Run Cell 3+** to perform GPU detection and analysis
+5. Review the output
+
+> **💡 Tip:** The restart is necessary because Python needs to reload its module cache to recognize the newly installed package. Without the restart, you'll get `ModuleNotFoundError: No module named 'cuda_healthcheck'`.
 
 ---
 
@@ -281,22 +290,67 @@ Driver: No GPU detected (expected for driver node)
 
 ## ⚠️ Common Issues
 
-### Issue 1: "No GPU detected on driver"
+### Issue 1: "ModuleNotFoundError: No module named 'cuda_healthcheck'"
+
+**Cause:** You tried to import the package before installing it, or you didn't restart Python after installation.
+
+**Solution:**
+```python
+# Cell 1: Install
+%pip install git+https://github.com/TavnerJC/cuda-healthcheck-1.0.git
+
+# Cell 2: Restart (REQUIRED!)
+dbutils.library.restartPython()
+
+# Cell 3: Now import works
+from cuda_healthcheck import CUDADetector
+```
+
+### Issue 2: Red warning note after %pip install
+
+**Message you'll see:**  
+> "Note: you may need to restart the kernel using %restart_python or dbutils.library.restartPython()"
+
+**Status:** ✅ **This is COMPLETELY NORMAL!** It means the package installed successfully.
+
+**What to do:**  
+1. ✅ Celebrate - installation worked!
+2. ✅ Run `dbutils.library.restartPython()` in the next cell
+3. ⚠️ Do NOT re-run the install cell after restarting
+4. ✅ Continue with imports in Cell 3+
+
+**Why this happens:** Python needs to restart to recognize the newly installed package. Without the restart, you'll get `ModuleNotFoundError`.
+
+### Issue 3: "No GPU detected on driver"
 
 **Expected!** The driver node typically doesn't have a GPU. GPUs are on worker nodes.
 
-### Issue 2: "Package import fails on workers"
+### Issue 4: "Package import fails on workers"
 
 **Solution:** Install package cluster-wide (see Advanced section above).
 
-### Issue 3: "16 GPUs detected but only 1 physical GPU"
+### Issue 5: "16 GPUs detected but only 1 physical GPU"
 
 **Expected!** Each Spark executor reports the GPU. The code deduplicates by UUID to show actual physical GPUs.
 
-### Issue 4: "Cell hangs with py4j messages"
+### Issue 6: "Cell hangs with py4j messages"
 
 **Cause:** Trying to import package on workers when it's only installed on driver.  
 **Solution:** Use the provided notebook which avoids package imports on workers for basic detection.
+
+### Issue 7: "Variables undefined after restart"
+
+**Status:** ✅ **This is EXPECTED Python behavior!**
+
+When you run `dbutils.library.restartPython()`, all variables are cleared. This is how Python restarts work.
+
+**What to do:** Don't try to use variables from Cell 1 in Cell 3+. The restart clears everything.
+
+### Issue 8: Serverless: "[JVM_ATTRIBUTE_NOT_SUPPORTED] ... 'sparkContext'"
+
+**Cause:** Trying to use Spark/SparkContext on Serverless GPU Compute (not supported).
+
+**Solution:** Use `databricks_healthcheck_serverless.py` notebook which uses `detect_gpu_auto()` for serverless-compatible detection.
 
 ---
 
