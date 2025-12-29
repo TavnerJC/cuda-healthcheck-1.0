@@ -6,8 +6,8 @@ Classic ML Runtime clusters and Serverless GPU Compute.
 """
 
 import os
-import subprocess
 import socket
+import subprocess
 from typing import Any, Dict, List, Optional
 
 from ..utils.logging_config import get_logger
@@ -167,8 +167,8 @@ def detect_gpu_distributed() -> Dict[str, Any]:
 
         def check_gpu_worker(_):
             """Run GPU check on worker node."""
-            import subprocess
             import socket
+            import subprocess
 
             try:
                 result = subprocess.run(
