@@ -30,18 +30,18 @@ jobs:
     - name: Run flake8
       run: |
         # Stop the build if there are Python syntax errors or undefined names
-        flake8 src/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 cuda_healthcheck/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
         
         # Exit-zero treats all errors as warnings
-        flake8 src/ tests/ --count --max-complexity=10 --max-line-length=100 --statistics --exit-zero
+        flake8 cuda_healthcheck/ tests/ --count --max-complexity=10 --max-line-length=100 --statistics --exit-zero
 
     - name: Check code formatting with black
       run: |
-        black --check --line-length 100 src/ tests/
+        black --check --line-length 100 cuda_healthcheck/ tests/
 
     - name: Check import sorting with isort
       run: |
-        isort --check-only --profile black --line-length 100 src/ tests/
+        isort --check-only --profile black --line-length 100 cuda_healthcheck/ tests/
 
   type-check:
     name: Type Checking (mypy)
@@ -65,7 +65,7 @@ jobs:
 
     - name: Run mypy
       run: |
-        mypy src/ --ignore-missing-imports --no-strict-optional || true
+        mypy cuda_healthcheck/ --ignore-missing-imports --no-strict-optional || true
 
   security:
     name: Security Scan (bandit)
@@ -87,8 +87,8 @@ jobs:
 
     - name: Run bandit
       run: |
-        bandit -r src/ -f json -o bandit-report.json || true
-        bandit -r src/ -ll  # Only show medium and high severity issues
+        bandit -r cuda_healthcheck/ -f json -o bandit-report.json || true
+        bandit -r cuda_healthcheck/ -ll  # Only show medium and high severity issues
 
   complexity:
     name: Code Complexity (radon)
@@ -110,11 +110,11 @@ jobs:
 
     - name: Check cyclomatic complexity
       run: |
-        radon cc src/ -a -nb
+        radon cc cuda_healthcheck/ -a -nb
         
     - name: Check maintainability index
       run: |
-        radon mi src/ -nb
+        radon mi cuda_healthcheck/ -nb
 
   documentation:
     name: Documentation Check

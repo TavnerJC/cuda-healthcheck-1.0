@@ -364,7 +364,7 @@ def run_complete_healthcheck() -> Dict[str, Any]:
 
     Example:
         ```python
-        from src.healthcheck import run_complete_healthcheck
+        from cuda_healthcheck.healthcheck import run_complete_healthcheck
 
         result = run_complete_healthcheck()
         print(json.dumps(result, indent=2))

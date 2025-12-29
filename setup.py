@@ -2,9 +2,9 @@
 
 from setuptools import find_packages, setup
 
-# Read version from src/__init__.py
+# Read version from cuda_healthcheck/__init__.py
 version = {}
-with open("src/__init__.py") as f:
+with open("cuda_healthcheck/__init__.py") as f:
     for line in f:
         if line.startswith("__version__"):
             exec(line, version)

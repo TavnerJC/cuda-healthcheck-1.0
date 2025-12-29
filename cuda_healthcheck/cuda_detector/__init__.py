@@ -6,7 +6,7 @@ and library compatibility.
 
 Example:
     ```python
-    from src.cuda_detector import CUDADetector
+    from cuda_healthcheck.cuda_detector import CUDADetector
 
     detector = CUDADetector()
     environment = detector.detect_environment()

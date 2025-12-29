@@ -55,7 +55,7 @@ def get_logger(name: str, level: Optional[str] = None) -> logging.Logger:
 
     Example:
         ```python
-        from src.utils.logging_config import get_logger
+        from cuda_healthcheck.utils.logging_config import get_logger
 
         logger = get_logger(__name__)
         logger.info("Starting CUDA detection...")

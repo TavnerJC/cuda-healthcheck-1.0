@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.healthcheck.orchestrator import (
+from cuda_healthcheck.healthcheck.orchestrator import (
     HealthcheckOrchestrator,
     HealthcheckReport,
     run_complete_healthcheck,
@@ -177,8 +177,8 @@ class TestAnalyzeBreakingChanges:
 class TestGenerateReport:
     """Test generate_report method."""
 
-    @patch("src.healthcheck.orchestrator.CUDADetector")
-    @patch("src.healthcheck.orchestrator.BreakingChangesDatabase")
+    @patch("cuda_healthcheck.healthcheck.orchestrator.CUDADetector")
+    @patch("cuda_healthcheck.healthcheck.orchestrator.BreakingChangesDatabase")
     def test_generate_report_structure(self, mock_db_class, mock_detector_class):
         """Test that generated report has correct structure."""
         # Setup mocks
@@ -209,8 +209,8 @@ class TestGenerateReport:
         assert report.status in ["healthy", "warning", "critical"]
         assert isinstance(report.recommendations, list)
 
-    @patch("src.healthcheck.orchestrator.CUDADetector")
-    @patch("src.healthcheck.orchestrator.BreakingChangesDatabase")
+    @patch("cuda_healthcheck.healthcheck.orchestrator.CUDADetector")
+    @patch("cuda_healthcheck.healthcheck.orchestrator.BreakingChangesDatabase")
     def test_generate_report_healthy_status(self, mock_db_class, mock_detector_class):
         """Test report generation with healthy status."""
         mock_detector = MagicMock()
@@ -234,8 +234,8 @@ class TestGenerateReport:
 
         assert report.status == "healthy"
 
-    @patch("src.healthcheck.orchestrator.CUDADetector")
-    @patch("src.healthcheck.orchestrator.BreakingChangesDatabase")
+    @patch("cuda_healthcheck.healthcheck.orchestrator.CUDADetector")
+    @patch("cuda_healthcheck.healthcheck.orchestrator.BreakingChangesDatabase")
     def test_generate_report_warning_status(self, mock_db_class, mock_detector_class):
         """Test report generation with warning status."""
         mock_detector = MagicMock()
@@ -259,8 +259,8 @@ class TestGenerateReport:
 
         assert report.status == "warning"
 
-    @patch("src.healthcheck.orchestrator.CUDADetector")
-    @patch("src.healthcheck.orchestrator.BreakingChangesDatabase")
+    @patch("cuda_healthcheck.healthcheck.orchestrator.CUDADetector")
+    @patch("cuda_healthcheck.healthcheck.orchestrator.BreakingChangesDatabase")
     def test_generate_report_critical_status(self, mock_db_class, mock_detector_class):
         """Test report generation with critical status."""
         mock_detector = MagicMock()
@@ -284,8 +284,8 @@ class TestGenerateReport:
 
         assert report.status == "critical"
 
-    @patch("src.healthcheck.orchestrator.CUDADetector")
-    @patch("src.healthcheck.orchestrator.BreakingChangesDatabase")
+    @patch("cuda_healthcheck.healthcheck.orchestrator.CUDADetector")
+    @patch("cuda_healthcheck.healthcheck.orchestrator.BreakingChangesDatabase")
     def test_generate_report_stores_last_report(self, mock_db_class, mock_detector_class):
         """Test that generate_report stores the report."""
         mock_detector = MagicMock()
@@ -386,7 +386,7 @@ class TestPrintReportSummary:
 class TestRunCompleteHealthcheck:
     """Test run_complete_healthcheck convenience function."""
 
-    @patch("src.healthcheck.orchestrator.HealthcheckOrchestrator")
+    @patch("cuda_healthcheck.healthcheck.orchestrator.HealthcheckOrchestrator")
     def test_run_complete_healthcheck(self, mock_orchestrator_class):
         """Test convenience function."""
         mock_orchestrator = MagicMock()
@@ -411,8 +411,8 @@ class TestRunCompleteHealthcheck:
 class TestRecommendationsGeneration:
     """Test recommendation generation logic."""
 
-    @patch("src.healthcheck.orchestrator.CUDADetector")
-    @patch("src.healthcheck.orchestrator.BreakingChangesDatabase")
+    @patch("cuda_healthcheck.healthcheck.orchestrator.CUDADetector")
+    @patch("cuda_healthcheck.healthcheck.orchestrator.BreakingChangesDatabase")
     def test_recommendations_include_critical_warning(self, mock_db_class, mock_detector_class):
         """Test that critical issues generate warning recommendation."""
         mock_detector = MagicMock()
@@ -437,8 +437,8 @@ class TestRecommendationsGeneration:
         # Should have critical warning in recommendations
         assert any("CRITICAL" in rec for rec in report.recommendations)
 
-    @patch("src.healthcheck.orchestrator.CUDADetector")
-    @patch("src.healthcheck.orchestrator.BreakingChangesDatabase")
+    @patch("cuda_healthcheck.healthcheck.orchestrator.CUDADetector")
+    @patch("cuda_healthcheck.healthcheck.orchestrator.BreakingChangesDatabase")
     def test_recommendations_for_cuda_13(self, mock_db_class, mock_detector_class):
         """Test recommendations for CUDA 13.x."""
         mock_env = MockEnvironment()

@@ -19,7 +19,7 @@ def example_1_local_detection():
     print("EXAMPLE 1: Local CUDA Detection")
     print("=" * 80)
 
-    from src.cuda_detector import detect_cuda_environment
+    from cuda_healthcheck.cuda_detector import detect_cuda_environment
 
     print("\n🔍 Detecting CUDA environment...")
     env = detect_cuda_environment()
@@ -43,7 +43,7 @@ def example_2_complete_healthcheck():
     print("EXAMPLE 2: Complete Healthcheck")
     print("=" * 80)
 
-    from src.healthcheck import run_complete_healthcheck
+    from cuda_healthcheck.healthcheck import run_complete_healthcheck
 
     print("\n🏥 Running complete healthcheck...")
     results = run_complete_healthcheck()
@@ -72,7 +72,7 @@ def example_3_breaking_changes():
     print("EXAMPLE 3: Breaking Changes Database")
     print("=" * 80)
 
-    from src.data import get_breaking_changes
+    from cuda_healthcheck.data import get_breaking_changes
 
     print("\n📋 Querying breaking changes for PyTorch...")
     pytorch_changes = get_breaking_changes(library="pytorch")
@@ -94,7 +94,7 @@ def example_4_compatibility_scoring():
     print("EXAMPLE 4: Compatibility Scoring")
     print("=" * 80)
 
-    from src.data import score_compatibility
+    from cuda_healthcheck.data import score_compatibility
 
     # Scenario: PyTorch 2.1.0 with CUDA 12.4 trying to upgrade to CUDA 13.0
     print("\n🎯 Scenario: Upgrading from CUDA 12.4 to 13.0 with PyTorch 2.1.0")
@@ -193,6 +193,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-

@@ -6,7 +6,7 @@ For new code, prefer using src.databricks.DatabricksHealthchecker.
 
 Example:
     ```python
-    from src.databricks_api import ClusterScanner
+    from cuda_healthcheck.databricks_api import ClusterScanner
 
     scanner = ClusterScanner()
     results = scanner.scan_all_clusters()

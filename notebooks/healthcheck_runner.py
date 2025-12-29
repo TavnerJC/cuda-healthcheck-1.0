@@ -1,16 +1,16 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC # CUDA Healthcheck Runner
-# MAGIC 
+# MAGIC
 # MAGIC This notebook runs a complete CUDA healthcheck on the current Databricks cluster.
-# MAGIC 
+# MAGIC
 # MAGIC **Features:**
 # MAGIC - Detects CUDA version and GPU properties
 # MAGIC - Checks library compatibility (PyTorch, TensorFlow, cuDF)
 # MAGIC - Analyzes breaking changes
 # MAGIC - Provides compatibility scores and recommendations
 # MAGIC - Exports results to Delta table
-# MAGIC 
+# MAGIC
 # MAGIC **Prerequisites:**
 # MAGIC - GPU-enabled Databricks cluster
 # MAGIC - CUDA Healthcheck package installed (see Setup notebook)
@@ -24,9 +24,10 @@
 
 # Import the CUDA Healthcheck package
 import sys
-sys.path.insert(0, '/Workspace/Repos/cuda-healthcheck/cuda-healthcheck')
 
-from src.databricks import get_healthchecker, DatabricksHealthchecker
+sys.path.insert(0, "/Workspace/Repos/cuda-healthcheck/cuda-healthcheck")
+
+from cuda_healthcheck.databricks import get_healthchecker, DatabricksHealthchecker
 from src import run_complete_healthcheck
 import json
 
@@ -36,7 +37,7 @@ print("✓ CUDA Healthcheck package loaded successfully")
 
 # MAGIC %md
 # MAGIC ## 2. Quick Healthcheck
-# MAGIC 
+# MAGIC
 # MAGIC Run a simple healthcheck to verify everything is working.
 
 # COMMAND ----------
@@ -53,7 +54,7 @@ print(f"Timestamp: {result['timestamp']}")
 print()
 
 # Show CUDA environment
-cuda_env = result.get('cuda_environment', {})
+cuda_env = result.get("cuda_environment", {})
 print("CUDA Environment:")
 print(f"  Runtime Version: {cuda_env.get('cuda_runtime_version', 'N/A')}")
 print(f"  Driver Version: {cuda_env.get('cuda_driver_version', 'N/A')}")
@@ -61,7 +62,7 @@ print(f"  NVCC Version: {cuda_env.get('nvcc_version', 'N/A')}")
 print()
 
 # Show GPUs
-gpus = cuda_env.get('gpus', [])
+gpus = cuda_env.get("gpus", [])
 print(f"GPUs Detected: {len(gpus)}")
 for gpu in gpus:
     print(f"  [{gpu.get('gpu_index')}] {gpu.get('name')}")
@@ -74,7 +75,7 @@ print("=" * 80)
 
 # MAGIC %md
 # MAGIC ## 3. Detailed Healthcheck with Databricks Integration
-# MAGIC 
+# MAGIC
 # MAGIC Use the DatabricksHealthchecker for more detailed analysis and cluster metadata.
 
 # COMMAND ----------
@@ -92,13 +93,13 @@ checker.display_results(detailed_result)
 
 # MAGIC %md
 # MAGIC ## 4. Analyze Compatibility
-# MAGIC 
+# MAGIC
 # MAGIC Show detailed compatibility analysis and breaking changes.
 
 # COMMAND ----------
 
 # Extract compatibility analysis
-compat = detailed_result.get('compatibility_analysis', {})
+compat = detailed_result.get("compatibility_analysis", {})
 
 print("=" * 80)
 print("COMPATIBILITY ANALYSIS")
@@ -113,9 +114,9 @@ print(f"Recommendation: {compat.get('recommendation', 'N/A')}")
 print("=" * 80)
 
 # Show breaking changes if any
-breaking_changes = compat.get('breaking_changes', {})
-critical_changes = breaking_changes.get('CRITICAL', [])
-warning_changes = breaking_changes.get('WARNING', [])
+breaking_changes = compat.get("breaking_changes", {})
+critical_changes = breaking_changes.get("CRITICAL", [])
+warning_changes = breaking_changes.get("WARNING", [])
 
 if critical_changes:
     print()
@@ -137,7 +138,7 @@ if warning_changes:
 
 # MAGIC %md
 # MAGIC ## 5. Export Results to Delta Table
-# MAGIC 
+# MAGIC
 # MAGIC Save the healthcheck results to a Delta table for historical tracking and analysis.
 
 # COMMAND ----------
@@ -162,10 +163,12 @@ flat_result = {
     "healthcheck_id": detailed_result.get("healthcheck_id"),
     "cluster_id": detailed_result.get("cluster_id"),
     "cluster_name": detailed_result.get("cluster_name"),
-    "timestamp": datetime.fromisoformat(detailed_result.get("timestamp").replace('Z', '+00:00')),
+    "timestamp": datetime.fromisoformat(detailed_result.get("timestamp").replace("Z", "+00:00")),
     "cuda_runtime_version": detailed_result.get("cuda_environment", {}).get("cuda_runtime_version"),
     "cuda_driver_version": detailed_result.get("cuda_environment", {}).get("cuda_driver_version"),
-    "compatibility_score": detailed_result.get("compatibility_analysis", {}).get("compatibility_score"),
+    "compatibility_score": detailed_result.get("compatibility_analysis", {}).get(
+        "compatibility_score"
+    ),
     "critical_issues": detailed_result.get("compatibility_analysis", {}).get("critical_issues"),
     "warning_issues": detailed_result.get("compatibility_analysis", {}).get("warning_issues"),
     "status": detailed_result.get("status"),
@@ -187,13 +190,14 @@ print(f"  SELECT * FROM {table_path} ORDER BY timestamp DESC LIMIT 10")
 
 # MAGIC %md
 # MAGIC ## 6. Historical Analysis
-# MAGIC 
+# MAGIC
 # MAGIC Query historical healthcheck results to track changes over time.
 
 # COMMAND ----------
 
 # Query recent healthcheck results
-recent_results = spark.sql(f"""
+recent_results = spark.sql(
+    f"""
     SELECT 
         timestamp,
         cluster_name,
@@ -205,7 +209,8 @@ recent_results = spark.sql(f"""
     FROM {table_path}
     ORDER BY timestamp DESC
     LIMIT 10
-""")
+"""
+)
 
 display(recent_results)
 
@@ -213,13 +218,13 @@ display(recent_results)
 
 # MAGIC %md
 # MAGIC ## 7. Generate Summary Report
-# MAGIC 
+# MAGIC
 # MAGIC Create a summary report for the current cluster.
 
 # COMMAND ----------
 
 # Summary report
-recommendations = detailed_result.get('recommendations', [])
+recommendations = detailed_result.get("recommendations", [])
 
 print("=" * 80)
 print("HEALTHCHECK SUMMARY REPORT")
@@ -245,25 +250,25 @@ print(f"\nFull report saved to: {report_filename}")
 
 # MAGIC %md
 # MAGIC ## 8. Next Steps
-# MAGIC 
+# MAGIC
 # MAGIC Based on the healthcheck results:
-# MAGIC 
+# MAGIC
 # MAGIC **If Status is HEALTHY (Score 90-100):**
 # MAGIC - ✓ Your environment is well-configured
 # MAGIC - Continue monitoring for library updates
 # MAGIC - Run healthcheck monthly or after major updates
-# MAGIC 
+# MAGIC
 # MAGIC **If Status is WARNING (Score 70-89):**
 # MAGIC - ⚠️ Review warnings in the compatibility analysis
 # MAGIC - Test your workloads thoroughly before production
 # MAGIC - Consider upgrading libraries with warnings
-# MAGIC 
+# MAGIC
 # MAGIC **If Status is CRITICAL (Score < 70):**
 # MAGIC - ❌ Address critical breaking changes immediately
 # MAGIC - Review migration paths for affected libraries
 # MAGIC - Do NOT deploy to production until resolved
 # MAGIC - Consult the breaking changes documentation
-# MAGIC 
+# MAGIC
 # MAGIC **Resources:**
 # MAGIC - Breaking Changes Documentation: `/Workspace/Repos/cuda-healthcheck/docs/BREAKING_CHANGES.md`
 # MAGIC - Migration Guide: `/Workspace/Repos/cuda-healthcheck/docs/MIGRATION_GUIDE.md`
@@ -273,7 +278,7 @@ print(f"\nFull report saved to: {report_filename}")
 
 # MAGIC %md
 # MAGIC ## Appendix: Custom Checks
-# MAGIC 
+# MAGIC
 # MAGIC Run custom compatibility checks for specific scenarios.
 
 # COMMAND ----------
@@ -292,9 +297,9 @@ print(f"Compatible: {compat_check['compatible']}")
 print(f"Breaking Changes Found: {compat_check['total_changes']}")
 print()
 
-if not compat_check['compatible']:
+if not compat_check["compatible"]:
     print("⚠️ INCOMPATIBLE - Review the following:")
-    critical = compat_check['breaking_changes']['critical']
+    critical = compat_check["breaking_changes"]["critical"]
     for change in critical:
         print(f"\n  Library: {change['affected_library']}")
         print(f"  Issue: {change['title']}")
@@ -304,12 +309,9 @@ if not compat_check['compatible']:
 
 # MAGIC %md
 # MAGIC ---
-# MAGIC 
+# MAGIC
 # MAGIC **Notebook Information:**
 # MAGIC - Version: 1.0.0
 # MAGIC - Last Updated: December 2024
 # MAGIC - Compatible with: CUDA 12.4, 12.6, 13.0
 # MAGIC - Requires: GPU-enabled Databricks cluster
-
-
-

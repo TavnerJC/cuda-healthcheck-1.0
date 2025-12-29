@@ -6,7 +6,7 @@ scoring functions.
 
 Example:
     ```python
-    from src.data import BreakingChangesDatabase, score_compatibility
+    from cuda_healthcheck.data import BreakingChangesDatabase, score_compatibility
 
     db = BreakingChangesDatabase()
     changes = db.get_changes_by_library("pytorch")

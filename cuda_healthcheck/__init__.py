@@ -24,7 +24,7 @@ Example:
 Example:
     ```python
     # Databricks integration
-    from src.databricks import DatabricksHealthchecker
+    from cuda_healthcheck.databricks import DatabricksHealthchecker
     checker = DatabricksHealthchecker()
     result = checker.run_healthcheck()
     checker.display_results()

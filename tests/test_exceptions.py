@@ -6,7 +6,7 @@ Tests can be run locally without any dependencies on Databricks or CUDA.
 
 import pytest
 
-from src.utils.exceptions import (
+from cuda_healthcheck.utils.exceptions import (
     BreakingChangeError,
     ClusterNotFoundError,
     ClusterNotRunningError,

@@ -8,7 +8,7 @@ import logging
 
 import pytest
 
-from src.utils.logging_config import get_databricks_logger, get_logger, setup_logging
+from cuda_healthcheck.utils.logging_config import get_databricks_logger, get_logger, setup_logging
 
 
 class TestGetLogger:

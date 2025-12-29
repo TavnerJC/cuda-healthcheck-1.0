@@ -55,7 +55,7 @@ class DatabricksHealthchecker:
     Example:
         ```python
         # In a Databricks notebook
-        from src.databricks import DatabricksHealthchecker
+        from cuda_healthcheck.databricks import DatabricksHealthchecker
 
         checker = DatabricksHealthchecker()
         result = checker.run_healthcheck()

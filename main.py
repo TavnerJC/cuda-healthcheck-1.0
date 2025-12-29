@@ -18,10 +18,10 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from src.cuda_detector import detect_cuda_environment
-from src.healthcheck import run_complete_healthcheck
-from src.databricks_api import scan_clusters
-from src.data import get_breaking_changes, BreakingChangesDatabase
+from cuda_healthcheck.cuda_detector import detect_cuda_environment
+from cuda_healthcheck.healthcheck import run_complete_healthcheck
+from cuda_healthcheck.databricks_api import scan_clusters
+from cuda_healthcheck.data import get_breaking_changes, BreakingChangesDatabase
 
 
 def cmd_detect(args):
@@ -215,6 +215,3 @@ Examples:
 
 if __name__ == "__main__":
     main()
-
-
-

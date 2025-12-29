@@ -215,10 +215,10 @@ try:
     from src import BreakingChangesDatabase
     print("  ✓ BreakingChangesDatabase imported")
     
-    from src.databricks import DatabricksHealthchecker
+    from cuda_healthcheck.databricks import DatabricksHealthchecker
     print("  ✓ DatabricksHealthchecker imported")
     
-    from src.utils import get_logger
+    from cuda_healthcheck.utils import get_logger
     print("  ✓ Utilities imported")
     
     print()

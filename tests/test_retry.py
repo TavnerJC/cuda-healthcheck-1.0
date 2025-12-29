@@ -9,7 +9,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from src.utils.retry import retry_on_failure, retry_with_timeout
+from cuda_healthcheck.utils.retry import retry_on_failure, retry_with_timeout
 
 
 class TestRetryOnFailure:

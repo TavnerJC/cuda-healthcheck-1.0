@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, Mock, mock_open, patch
 
 import pytest
 
-from src.cuda_detector.detector import CUDADetector, detect_cuda_environment
+from cuda_healthcheck.cuda_detector.detector import CUDADetector, detect_cuda_environment
 
 # Check if nvidia-smi is available
 HAS_NVIDIA_SMI = shutil.which("nvidia-smi") is not None
@@ -20,8 +20,8 @@ class TestCUDADetector:
         """Set up test fixtures."""
         self.detector = CUDADetector()
 
-    @patch("src.cuda_detector.detector.check_command_available")
-    @patch("src.cuda_detector.detector.subprocess.run")
+    @patch("cuda_healthcheck.cuda_detector.detector.check_command_available")
+    @patch("cuda_healthcheck.cuda_detector.detector.subprocess.run")
     def test_detect_nvidia_smi_success(self, mock_run, mock_check):
         """Test successful nvidia-smi detection."""
         # Mock that nvidia-smi command is available
@@ -40,7 +40,7 @@ class TestCUDADetector:
         assert result["gpus"][0].name == "Tesla V100-SXM2-16GB"
         assert result["gpus"][0].compute_capability == "7.0"
 
-    @patch("src.cuda_detector.detector.subprocess.run")
+    @patch("cuda_healthcheck.cuda_detector.detector.subprocess.run")
     def test_detect_nvidia_smi_not_found(self, mock_run):
         """Test nvidia-smi not found."""
         mock_run.side_effect = FileNotFoundError()
@@ -50,8 +50,8 @@ class TestCUDADetector:
         assert result["success"] is False
         assert "nvidia-smi" in result["error"] and "not found" in result["error"]
 
-    @patch("src.cuda_detector.detector.check_command_available")
-    @patch("src.cuda_detector.detector.subprocess.run")
+    @patch("cuda_healthcheck.cuda_detector.detector.check_command_available")
+    @patch("cuda_healthcheck.cuda_detector.detector.subprocess.run")
     def test_detect_nvcc_version(self, mock_run, mock_check_command):
         """Test nvcc version detection."""
         mock_check_command.return_value = True
@@ -63,7 +63,7 @@ class TestCUDADetector:
 
         assert version == "12.4"
 
-    @patch("src.cuda_detector.detector.subprocess.run")
+    @patch("cuda_healthcheck.cuda_detector.detector.subprocess.run")
     def test_detect_nvcc_not_found(self, mock_run):
         """Test nvcc not found."""
         mock_run.side_effect = FileNotFoundError()
@@ -136,7 +136,7 @@ class TestCUDADetector:
 
 def test_detect_cuda_environment():
     """Test convenience function."""
-    with patch("src.cuda_detector.detector.CUDADetector") as mock_detector:
+    with patch("cuda_healthcheck.cuda_detector.detector.CUDADetector") as mock_detector:
         mock_instance = Mock()
         mock_detector.return_value = mock_instance
 

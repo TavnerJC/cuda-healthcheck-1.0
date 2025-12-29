@@ -318,7 +318,7 @@ def validate_or_fallback(
 
     Example:
         ```python
-        from src.utils.validation import validate_cuda_version
+        from cuda_healthcheck.utils.validation import validate_cuda_version
 
         version = validate_or_fallback(
             value=detected_version,

@@ -9,12 +9,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.databricks.connector import (
+from cuda_healthcheck.databricks.connector import (
     ClusterInfo,
     DatabricksConnector,
     is_databricks_environment,
 )
-from src.utils.exceptions import (
+from cuda_healthcheck.utils.exceptions import (
     ClusterNotFoundError,
     ConfigurationError,
     DatabricksConnectionError,
@@ -26,11 +26,11 @@ class TestDatabricksConnector:
 
     def test_initialization_without_sdk(self):
         """Test initialization when Databricks SDK is not available."""
-        with patch("src.databricks.connector.DATABRICKS_SDK_AVAILABLE", False):
+        with patch("cuda_healthcheck.databricks.connector.DATABRICKS_SDK_AVAILABLE", False):
             with pytest.raises(DatabricksConnectionError, match="SDK not installed"):
                 DatabricksConnector()
 
-    @patch("src.databricks.connector.DATABRICKS_SDK_AVAILABLE", True)
+    @patch("cuda_healthcheck.databricks.connector.DATABRICKS_SDK_AVAILABLE", True)
     def test_initialization_without_credentials(self, monkeypatch):
         """Test initialization without credentials."""
         monkeypatch.delenv("DATABRICKS_HOST", raising=False)
@@ -39,8 +39,8 @@ class TestDatabricksConnector:
         with pytest.raises(ConfigurationError, match="credentials not provided"):
             DatabricksConnector()
 
-    @patch("src.databricks.connector.DATABRICKS_SDK_AVAILABLE", True)
-    @patch("src.databricks.connector.WorkspaceClient")
+    @patch("cuda_healthcheck.databricks.connector.DATABRICKS_SDK_AVAILABLE", True)
+    @patch("cuda_healthcheck.databricks.connector.WorkspaceClient")
     def test_initialization_with_credentials(self, mock_client_class):
         """Test successful initialization with credentials."""
         mock_client_instance = MagicMock()
@@ -60,8 +60,8 @@ class TestDatabricksConnector:
         assert cluster_info.cluster_id == mock_cluster_info["cluster_id"]
         assert cluster_info.cluster_name == mock_cluster_info["cluster_name"]
 
-    @patch("src.databricks.connector.DATABRICKS_SDK_AVAILABLE", True)
-    @patch("src.databricks.connector.WorkspaceClient")
+    @patch("cuda_healthcheck.databricks.connector.DATABRICKS_SDK_AVAILABLE", True)
+    @patch("cuda_healthcheck.databricks.connector.WorkspaceClient")
     def test_get_cluster_info_not_found(self, mock_client_class):
         """Test cluster info retrieval when cluster doesn't exist."""
         mock_client = MagicMock()
@@ -137,8 +137,8 @@ class TestClusterInfo:
 class TestRetryBehavior:
     """Test retry functionality in connector."""
 
-    @patch("src.databricks.connector.DATABRICKS_SDK_AVAILABLE", True)
-    @patch("src.databricks.connector.WorkspaceClient")
+    @patch("cuda_healthcheck.databricks.connector.DATABRICKS_SDK_AVAILABLE", True)
+    @patch("cuda_healthcheck.databricks.connector.WorkspaceClient")
     def test_get_cluster_info_with_retry(self, mock_client_class):
         """Test that get_cluster_info retries on failure."""
         mock_client = MagicMock()

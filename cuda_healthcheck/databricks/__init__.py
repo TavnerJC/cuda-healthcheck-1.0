@@ -7,7 +7,7 @@ API connector for cluster operations and Delta table management.
 Example:
     ```python
     # High-level healthcheck (recommended)
-    from src.databricks import DatabricksHealthchecker, get_healthchecker
+    from cuda_healthcheck.databricks import DatabricksHealthchecker, get_healthchecker
 
     checker = get_healthchecker()
     result = checker.run_healthcheck()
@@ -18,7 +18,7 @@ Example:
 Example:
     ```python
     # Low-level connector
-    from src.databricks import DatabricksConnector
+    from cuda_healthcheck.databricks import DatabricksConnector
 
     connector = DatabricksConnector()
     cluster_info = connector.get_cluster_info("cluster-123")

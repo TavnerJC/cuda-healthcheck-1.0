@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.databricks.databricks_integration import (
+from cuda_healthcheck.databricks.databricks_integration import (
     DatabricksHealthchecker,
     get_healthchecker,
 )
@@ -32,7 +32,7 @@ class TestDatabricksHealthchecker:
 
     def test_get_cluster_cuda_version(self, mock_cuda_detector):
         """Test getting CUDA version from cluster."""
-        with patch("src.databricks.databricks_integration.CUDADetector") as mock_class:
+        with patch("cuda_healthcheck.databricks.databricks_integration.CUDADetector") as mock_class:
             mock_class.return_value = mock_cuda_detector
             checker = DatabricksHealthchecker()
             version = checker.get_cluster_cuda_version()
@@ -50,9 +50,11 @@ class TestDatabricksHealthchecker:
 
     def test_run_healthcheck(self, mock_cuda_environment, mock_breaking_changes_db):
         """Test running complete healthcheck."""
-        with patch("src.databricks.databricks_integration.CUDADetector") as mock_detector_class:
+        with patch(
+            "cuda_healthcheck.databricks.databricks_integration.CUDADetector"
+        ) as mock_detector_class:
             with patch(
-                "src.databricks.databricks_integration.BreakingChangesDatabase"
+                "cuda_healthcheck.databricks.databricks_integration.BreakingChangesDatabase"
             ) as mock_db_class:
                 # Setup mocks
                 from dataclasses import dataclass
@@ -127,9 +129,11 @@ class TestDatabricksHealthchecker:
 
     def test_run_healthcheck_with_warnings(self, mock_cuda_environment):
         """Test healthcheck with warning-level issues."""
-        with patch("src.databricks.databricks_integration.CUDADetector") as mock_detector_class:
+        with patch(
+            "cuda_healthcheck.databricks.databricks_integration.CUDADetector"
+        ) as mock_detector_class:
             with patch(
-                "src.databricks.databricks_integration.BreakingChangesDatabase"
+                "cuda_healthcheck.databricks.databricks_integration.BreakingChangesDatabase"
             ) as mock_db_class:
                 from dataclasses import dataclass
 
@@ -174,9 +178,11 @@ class TestDatabricksHealthchecker:
 
     def test_run_healthcheck_with_critical_issues(self):
         """Test healthcheck with critical issues."""
-        with patch("src.databricks.databricks_integration.CUDADetector") as mock_detector_class:
+        with patch(
+            "cuda_healthcheck.databricks.databricks_integration.CUDADetector"
+        ) as mock_detector_class:
             with patch(
-                "src.databricks.databricks_integration.BreakingChangesDatabase"
+                "cuda_healthcheck.databricks.databricks_integration.BreakingChangesDatabase"
             ) as mock_db_class:
                 from dataclasses import dataclass
 
