@@ -2,7 +2,7 @@
 
 import os
 import shutil
-from unittest.mock import Mock, mock_open, patch
+from unittest.mock import MagicMock, Mock, mock_open, patch
 
 import pytest
 
@@ -20,11 +20,11 @@ class TestCUDADetector:
         """Set up test fixtures."""
         self.detector = CUDADetector()
 
-    @patch("subprocess.run")
+    @patch("src.cuda_detector.detector.subprocess.run")
     def test_detect_nvidia_smi_success(self, mock_run):
         """Test successful nvidia-smi detection."""
-        # Mock nvidia-smi output (test runs via mock even without GPU)
-        mock_run.return_value = Mock(
+        # Mock nvidia-smi output - patches subprocess in the detector module
+        mock_run.return_value = MagicMock(
             returncode=0,
             stdout="535.104.05, Tesla V100-SXM2-16GB, 16384, 7.0, 0\n",
             stderr="",
@@ -37,7 +37,7 @@ class TestCUDADetector:
         assert result["gpus"][0].name == "Tesla V100-SXM2-16GB"
         assert result["gpus"][0].compute_capability == "7.0"
 
-    @patch("subprocess.run")
+    @patch("src.cuda_detector.detector.subprocess.run")
     def test_detect_nvidia_smi_not_found(self, mock_run):
         """Test nvidia-smi not found."""
         mock_run.side_effect = FileNotFoundError()
@@ -48,11 +48,11 @@ class TestCUDADetector:
         assert "nvidia-smi" in result["error"] and "not found" in result["error"]
 
     @patch("src.cuda_detector.detector.check_command_available")
-    @patch("subprocess.run")
+    @patch("src.cuda_detector.detector.subprocess.run")
     def test_detect_nvcc_version(self, mock_run, mock_check_command):
         """Test nvcc version detection."""
         mock_check_command.return_value = True
-        mock_run.return_value = Mock(
+        mock_run.return_value = MagicMock(
             returncode=0, stdout="Cuda compilation tools, release 12.4, V12.4.131"
         )
 
@@ -60,7 +60,7 @@ class TestCUDADetector:
 
         assert version == "12.4"
 
-    @patch("subprocess.run")
+    @patch("src.cuda_detector.detector.subprocess.run")
     def test_detect_nvcc_not_found(self, mock_run):
         """Test nvcc not found."""
         mock_run.side_effect = FileNotFoundError()
