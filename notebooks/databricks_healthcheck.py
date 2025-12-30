@@ -1,6 +1,23 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # CUDA Healthcheck for Databricks GPU Clusters
+# MAGIC # ⚠️ LEGACY NOTEBOOK - Please Use Enhanced Version
+# MAGIC
+# MAGIC **This notebook is now LEGACY.** Please use the enhanced version for better features:
+# MAGIC
+# MAGIC ## 🆕 Enhanced Notebook (Recommended)
+# MAGIC
+# MAGIC **File:** `notebooks/01_cuda_environment_validation_enhanced.py`  
+# MAGIC **GitHub:** https://github.com/TavnerJC/cuda-healthcheck-1.0/blob/main/notebooks/01_cuda_environment_validation_enhanced.py
+# MAGIC
+# MAGIC **Why switch?**
+# MAGIC - ✅ **CuOPT compatibility detection** (detects nvJitLink incompatibility)
+# MAGIC - ✅ **Auto-detection** (works on Classic ML Runtime & Serverless GPU Compute)
+# MAGIC - ✅ **Comprehensive breaking changes** with migration paths
+# MAGIC - ✅ **Validated on Databricks A10G** (production-ready)
+# MAGIC
+# MAGIC ---
+# MAGIC
+# MAGIC # CUDA Healthcheck for Databricks GPU Clusters (Legacy)
 # MAGIC
 # MAGIC This notebook validates CUDA configuration, detects GPU hardware, and identifies compatibility issues on Databricks GPU clusters.
 # MAGIC
@@ -15,6 +32,8 @@
 # MAGIC 3. Validates CUDA driver and runtime versions
 # MAGIC 4. Analyzes breaking changes for ML frameworks
 # MAGIC 5. Provides compatibility scores and recommendations
+# MAGIC
+# MAGIC **Note:** This legacy notebook is kept for backward compatibility only.
 
 # COMMAND ----------
 

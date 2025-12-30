@@ -37,12 +37,24 @@ The tool provides multiple integration levels:
 
 ### For Databricks (Recommended)
 
-**Quick Start - Import the Working Notebook:**
+**🆕 NEW: Enhanced Notebook with CuOPT Detection (Recommended)**
+
+**Quick Start - Import the Enhanced Notebook:**
 
 1. In Databricks, go to **Workspace** → **Import**
 2. Select **URL**
-3. Paste: `https://raw.githubusercontent.com/TavnerJC/cuda-healthcheck-1.0/main/notebooks/databricks_healthcheck.py`
+3. Paste: `https://raw.githubusercontent.com/TavnerJC/cuda-healthcheck-1.0/main/notebooks/01_cuda_environment_validation_enhanced.py`
 4. Attach to a GPU cluster and run!
+
+**Why use the enhanced notebook?**
+- ✅ **CuOPT compatibility detection** - Detects nvJitLink incompatibility automatically
+- ✅ **Auto-detection** - Works on both Classic ML Runtime & Serverless GPU Compute
+- ✅ **Comprehensive breaking changes** - Full analysis with migration paths
+- ✅ **Production-validated** - Tested on Databricks A10G
+
+**Legacy Notebooks (Backward Compatibility):**
+- Classic ML Runtime: `https://raw.githubusercontent.com/TavnerJC/cuda-healthcheck-1.0/main/notebooks/databricks_healthcheck.py`
+- Serverless GPU: `https://raw.githubusercontent.com/TavnerJC/cuda-healthcheck-1.0/main/notebooks/databricks_healthcheck_serverless.py`
 
 📘 **See [Databricks Deployment Guide](docs/DATABRICKS_DEPLOYMENT.md) for detailed instructions**
 
@@ -122,7 +134,11 @@ print(json.dumps(result, indent=2))
 
 > **💡 Important:** After Cell 1 runs, you'll see a red warning note saying "you may need to restart the kernel". This is **expected and normal**! Just run Cell 2 to restart Python, then continue with Cell 3+. **Don't re-run Cell 1 after the restart.**
 
-📘 **See [notebooks/databricks_healthcheck.py](notebooks/databricks_healthcheck.py) or [notebooks/databricks_healthcheck_serverless.py](notebooks/databricks_healthcheck_serverless.py) for complete working notebooks**
+📘 **See [notebooks/01_cuda_environment_validation_enhanced.py](notebooks/01_cuda_environment_validation_enhanced.py) for the recommended notebook**
+
+**Legacy notebooks** (for backward compatibility):
+- [notebooks/databricks_healthcheck.py](notebooks/databricks_healthcheck.py) - Classic ML Runtime only
+- [notebooks/databricks_healthcheck_serverless.py](notebooks/databricks_healthcheck_serverless.py) - Serverless GPU only
 
 ### Local Python (After Installation)
 

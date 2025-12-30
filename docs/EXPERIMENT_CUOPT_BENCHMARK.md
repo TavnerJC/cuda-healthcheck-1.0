@@ -36,7 +36,52 @@ When available, test H100 with CUDA 13.0 to measure CUDA version impact.
 
 Create 3 notebooks in your Databricks workspace:
 
-#### **Notebook 1: Environment Validator** (`01_validate_environment.py`)
+#### **Notebook 1: Environment Validator** (RECOMMENDED: Use Enhanced Version)
+
+**🆕 Use the production-validated enhanced notebook:**
+
+**File:** `notebooks/01_cuda_environment_validation_enhanced.py`  
+**GitHub:** https://github.com/TavnerJC/cuda-healthcheck-1.0/blob/main/notebooks/01_cuda_environment_validation_enhanced.py
+
+**Features:**
+- ✅ GPU detection (Classic & Serverless)
+- ✅ CUDA environment detection
+- ✅ **CuOPT compatibility checking** ⭐ (detects nvJitLink incompatibility)
+- ✅ nvJitLink version validation
+- ✅ Breaking changes analysis with migration paths
+- ✅ **Production-validated on Databricks A10G**
+
+**Quick Import:**
+1. In Databricks, go to **Workspace** → **Import**
+2. Select **URL**
+3. Paste: `https://raw.githubusercontent.com/TavnerJC/cuda-healthcheck-1.0/main/notebooks/01_cuda_environment_validation_enhanced.py`
+4. Attach to your GPU cluster and run!
+
+**Quick Start:**
+```python
+%pip install git+https://github.com/TavnerJC/cuda-healthcheck-1.0.git
+dbutils.library.restartPython()
+
+# Then run the notebook cells step by step
+# The enhanced notebook includes 8 comprehensive validation steps
+```
+
+**Expected Output:**
+- GPU hardware detection
+- CUDA version validation
+- **CuOPT compatibility status** (if installed)
+- **nvJitLink version check** (critical for CuOPT)
+- CUDA 13.0 upgrade analysis
+- Detailed breaking changes with GitHub references
+
+---
+
+**Legacy Notebook Code (Reference Only):**
+
+<details>
+<summary>Click to expand legacy notebook code</summary>
+
+> **⚠️ Note:** The code below is kept for reference. Use the enhanced notebook above for production use.
 
 ```python
 # Databricks notebook source
@@ -259,6 +304,8 @@ print(f"\nGPU: {environment_snapshot['gpu_architecture']}")
 print(f"CUDA: {environment_snapshot['cuda_environment']['runtime']}")
 print(f"Compatibility Score: {environment_snapshot['compatibility_score']}/100")
 ```
+
+</details>
 
 ---
 
