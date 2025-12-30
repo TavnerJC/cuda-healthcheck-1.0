@@ -306,4 +306,26 @@ def detect_gpu_auto() -> Dict[str, Any]:
         if "gpu_count" not in result:
             result["gpu_count"] = result.get("physical_gpu_count", 0)
 
+        # For Classic clusters, create a top-level 'gpus' list for consistency
+        # by flattening the worker_nodes structure
+        if "worker_nodes" in result and result["worker_nodes"]:
+            flattened_gpus = []
+            for hostname, gpu_list in result["worker_nodes"].items():
+                for gpu in gpu_list:
+                    # Standardize key names to match direct detection format
+                    flattened_gpus.append(
+                        {
+                            "name": gpu.get("name", "Unknown"),
+                            "driver_version": gpu.get("driver", "N/A"),
+                            "memory_total": gpu.get("memory", "N/A"),
+                            "compute_capability": gpu.get("compute_cap", "N/A"),
+                            "uuid": gpu.get("uuid", "N/A"),
+                            "hostname": hostname,  # Add hostname for Classic clusters
+                        }
+                    )
+            result["gpus"] = flattened_gpus
+        elif "success" in result and not result["success"]:
+            # If detection failed, ensure empty gpus list exists
+            result["gpus"] = []
+
     return result
