@@ -483,14 +483,14 @@ See [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) for complete details.
 
 ## 📄 License
 
-[Your License Here]
+https://github.com/TavnerJC/cuda-healthcheck-1.0/blob/main/LICENSE
 
 ## 📞 Support
 
 For issues or questions:
 
 - Create a GitHub issue
-- Contact: [Your Contact Info]
+- https://github.com/TavnerJC/cuda-healthcheck-1.0/issues
 
 ## 🔗 References
 
