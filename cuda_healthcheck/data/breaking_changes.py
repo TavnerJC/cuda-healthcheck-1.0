@@ -323,6 +323,47 @@ class BreakingChangesDatabase:
                 references=["https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/"],
                 applies_to_compute_capabilities=["5.0"],
             ),
+            # CuOPT nvJitLink incompatibility (Databricks-specific)
+            BreakingChange(
+                id="cuopt-nvjitlink-databricks-ml-runtime",
+                title="CuOPT 25.12+ requires nvJitLink 12.9+ (incompatible with Databricks ML Runtime 16.4)",
+                severity=Severity.CRITICAL.value,
+                affected_library="cuopt",
+                cuda_version_from="12.4",
+                cuda_version_to="12.9",
+                description=(
+                    "NVIDIA CuOPT 25.12.0 requires nvidia-nvjitlink-cu12>=12.9.79, but Databricks ML Runtime 16.4 "
+                    "provides nvidia-nvjitlink-cu12 12.4.127. This causes 'undefined symbol: __nvJitLinkGetErrorLogSize_12_9' "
+                    "errors when loading libcuopt.so. Users CANNOT upgrade nvJitLink in Databricks managed runtimes as CUDA "
+                    "versions are environment-controlled by Databricks. This is a breaking incompatibility between CuOPT "
+                    "releases and Databricks runtime versions that prevents GPU-accelerated routing optimization."
+                ),
+                affected_apis=[
+                    "cuopt.routing.DataModel",
+                    "cuopt.routing.Solve",
+                    "cuopt.routing.SolverSettings",
+                    "All CuOPT routing and optimization APIs",
+                ],
+                migration_path=(
+                    "1. CANNOT FIX IN DATABRICKS ML RUNTIME 16.4 - CUDA libraries are runtime-locked\n"
+                    "2. Recommended actions:\n"
+                    "   a) Report to Databricks: https://github.com/databricks-industry-solutions/routing/issues\n"
+                    "   b) Request ML Runtime update with CUDA 12.9+ support\n"
+                    "   c) Use alternative solver: Google OR-Tools (pip install ortools)\n"
+                    "   d) Wait for Databricks ML Runtime 17.0+ with updated CUDA components\n"
+                    "3. Temporary workaround (may not work):\n"
+                    "   - pip install --upgrade nvidia-nvjitlink-cu12>=12.9.79 (often fails due to env constraints)\n"
+                    "4. Verification:\n"
+                    "   - Check nvJitLink: pip show nvidia-nvjitlink-cu12\n"
+                    "   - Check runtime: dbutils.notebook.run('/Workspace/...', 0, {})"
+                ),
+                references=[
+                    "https://github.com/databricks-industry-solutions/routing",
+                    "https://github.com/NVIDIA/cuopt",
+                    "https://docs.databricks.com/en/release-notes/runtime/index.html",
+                    "https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#compatibility",
+                ],
+            ),
         ]
 
     def get_all_changes(self) -> List[BreakingChange]:

@@ -477,6 +477,124 @@ class CUDADetector:
                 warnings=["cuDF not installed"],
             )
 
+    def detect_cuopt(self) -> LibraryInfo:
+        """
+        Detect NVIDIA CuOPT installation and check nvJitLink compatibility.
+        
+        CuOPT 25.12+ requires nvidia-nvjitlink-cu12>=12.9.79 but Databricks
+        ML Runtime 16.4 provides 12.4.127, causing compatibility issues.
+
+        Returns:
+            LibraryInfo object with CuOPT details and compatibility warnings.
+        """
+        warnings = []
+
+        try:
+            import cuopt
+
+            version = cuopt.__version__
+
+            # Check if CuOPT can actually load (test libcuopt.so)
+            cuda_version = None
+            load_successful = False
+            
+            try:
+                # Try to import routing module (loads libcuopt.so)
+                from cuopt import routing
+                
+                # Try to create a simple DataModel (validates library loading)
+                test_model = routing.DataModel(2, 1)
+                load_successful = True
+                logger.info(f"CuOPT {version} loaded successfully")
+                
+                # Try to detect CUDA version from dependencies
+                try:
+                    import nvidia.cuda_runtime
+                    cuda_version = nvidia.cuda_runtime.__version__
+                except Exception:
+                    pass
+                    
+            except RuntimeError as e:
+                error_msg = str(e)
+                
+                # Check for specific nvJitLink version mismatch
+                if "nvJitLink" in error_msg or "undefined symbol" in error_msg:
+                    warnings.append(
+                        "CRITICAL: CuOPT failed to load due to nvJitLink version mismatch"
+                    )
+                    warnings.append(
+                        "CuOPT 25.12+ requires nvidia-nvjitlink-cu12>=12.9.79"
+                    )
+                    
+                    # Try to detect installed nvJitLink version
+                    try:
+                        result = subprocess.run(
+                            ["pip", "show", "nvidia-nvjitlink-cu12"],
+                            capture_output=True,
+                            text=True,
+                            timeout=10
+                        )
+                        
+                        if result.returncode == 0:
+                            for line in result.stdout.split('\n'):
+                                if line.startswith('Version:'):
+                                    nvjitlink_version = line.split(':')[1].strip()
+                                    warnings.append(
+                                        f"Detected nvidia-nvjitlink-cu12 version: {nvjitlink_version}"
+                                    )
+                                    
+                                    # Check if it's the problematic 12.4 version
+                                    if nvjitlink_version.startswith('12.4'):
+                                        warnings.append(
+                                            "ERROR: Databricks ML Runtime provides nvJitLink 12.4.x"
+                                        )
+                                        warnings.append(
+                                            "This is incompatible with CuOPT 25.12+ (requires 12.9+)"
+                                        )
+                                        warnings.append(
+                                            "Users CANNOT upgrade nvJitLink in managed Databricks runtimes"
+                                        )
+                                        warnings.append(
+                                            "Report to: https://github.com/databricks-industry-solutions/routing/issues"
+                                        )
+                    except Exception:
+                        pass
+                        
+                    logger.error(f"CuOPT library load failed: {error_msg}")
+                else:
+                    warnings.append(f"CuOPT library load error: {error_msg}")
+                    
+            except Exception as e:
+                warnings.append(f"CuOPT verification failed: {str(e)}")
+                logger.error(f"CuOPT verification failed: {str(e)}")
+
+            return LibraryInfo(
+                name="cuopt",
+                version=version,
+                cuda_version=cuda_version,
+                is_compatible=load_successful,
+                warnings=warnings,
+            )
+
+        except ImportError:
+            return LibraryInfo(
+                name="cuopt",
+                version="Not installed",
+                cuda_version=None,
+                is_compatible=False,
+                warnings=["CuOPT not installed"],
+            )
+        except Exception as e:
+            error_msg = f"Unexpected error detecting CuOPT: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return LibraryInfo(
+                name="cuopt",
+                version="Error",
+                cuda_version=None,
+                is_compatible=False,
+                warnings=[error_msg],
+            )
+
     def detect_all_libraries(self) -> List[LibraryInfo]:
         """
         Detect all supported libraries and their CUDA compatibility.
@@ -484,7 +602,12 @@ class CUDADetector:
         Returns:
             List of LibraryInfo objects for all detected libraries.
         """
-        return [self.detect_pytorch(), self.detect_tensorflow(), self.detect_cudf()]
+        return [
+            self.detect_pytorch(),
+            self.detect_tensorflow(),
+            self.detect_cudf(),
+            self.detect_cuopt(),
+        ]
 
     def detect_environment(self) -> CUDAEnvironment:
         """
