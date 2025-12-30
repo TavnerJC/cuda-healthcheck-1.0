@@ -483,7 +483,7 @@ See [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) for complete details.
 
 ## 📄 License
 
-[Your License Here]
+**[Your License Here]**
 
 ## 📞 Support
 
