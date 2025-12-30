@@ -412,6 +412,182 @@ else:
 
 ---
 
+## 🚨 Real-World Case Study: CuOPT nvJitLink Incompatibility
+
+### The Problem
+
+In December 2025, we discovered a **CRITICAL breaking change** that demonstrates the exact value the CUDA Healthcheck Tool provides:
+
+**NVIDIA CuOPT 25.12+ fails to load on Databricks ML Runtime 16.4**
+
+#### Error Message
+```
+RuntimeWarning: Failed to load libcuopt library: libcuopt.so.
+Error: undefined symbol: __nvJitLinkGetErrorLogSize_12_9, version libnvJitLink.so.12
+```
+
+#### Root Cause
+| Component | Required Version | Databricks Provides | User Can Upgrade? |
+|-----------|------------------|---------------------|-------------------|
+| **nvidia-nvjitlink-cu12** | **>=12.9.79** | **12.4.127** | ❌ **NO** |
+
+CuOPT requires a newer version of nvJitLink than Databricks ML Runtime 16.4 provides, and **users cannot upgrade it** because CUDA components are runtime-locked.
+
+---
+
+### How the CUDA Healthcheck Tool Detects This
+
+#### 1. **Breaking Changes Database**
+
+The tool tracks this incompatibility in `breaking_changes.py`:
+
+```python
+BreakingChange(
+    id="cuopt-nvjitlink-databricks-ml-runtime",
+    title="CuOPT 25.12+ requires nvJitLink 12.9+ (incompatible with Databricks ML Runtime 16.4)",
+    severity=Severity.CRITICAL.value,
+    affected_library="cuopt",
+    cuda_version_from="12.4",
+    cuda_version_to="12.9",
+    description=(
+        "NVIDIA CuOPT 25.12.0 requires nvidia-nvjitlink-cu12>=12.9.79, but Databricks ML Runtime 16.4 "
+        "provides nvidia-nvjitlink-cu12 12.4.127. Users CANNOT upgrade nvJitLink in Databricks managed runtimes."
+    ),
+    ...
+)
+```
+
+#### 2. **Automatic Detection**
+
+The `CUDADetector.detect_cuopt()` method:
+- ✅ Checks if CuOPT is installed
+- ✅ Tests if `libcuopt.so` can actually load
+- ✅ Detects specific nvJitLink errors
+- ✅ Checks installed nvJitLink version via pip
+- ✅ Provides actionable warnings
+
+```python
+# Example usage
+from cuda_healthcheck import CUDADetector
+
+detector = CUDADetector()
+env = detector.detect_environment()
+
+# Check CuOPT from detected libraries
+cuopt_lib = next((lib for lib in env.libraries if lib.name == "cuopt"), None)
+
+if cuopt_lib and not cuopt_lib.is_compatible:
+    print(f"❌ CuOPT Incompatibility Detected!")
+    for warning in cuopt_lib.warnings:
+        print(f"   • {warning}")
+```
+
+**Output:**
+```
+❌ CuOPT Incompatibility Detected!
+   • CRITICAL: CuOPT failed to load due to nvJitLink version mismatch
+   • CuOPT 25.12+ requires nvidia-nvjitlink-cu12>=12.9.79
+   • Detected nvidia-nvjitlink-cu12 version: 12.4.127
+   • ERROR: Databricks ML Runtime provides nvJitLink 12.4.x
+   • Users CANNOT upgrade nvJitLink in managed Databricks runtimes
+   • Report to: https://github.com/databricks-industry-solutions/routing/issues
+```
+
+#### 3. **GitHub Issue Template**
+
+The tool provides a pre-formatted issue template to report to Databricks:
+
+```python
+# Auto-generate GitHub issue from notebook
+# See: GITHUB_ISSUE_TEMPLATE_CUOPT.md
+
+# Generates URL like:
+# https://github.com/databricks-industry-solutions/routing/issues/new?title=...&body=...
+```
+
+---
+
+### Impact & Resolution
+
+| Impact | Resolution |
+|--------|-----------|
+| ❌ GPU routing optimization non-functional | ✅ Report to Databricks via GitHub issue |
+| ❌ CuOPT 25.12+ cannot load | ✅ Use OR-Tools alternative (pip install ortools) |
+| ❌ Databricks routing notebook broken | ✅ Wait for ML Runtime 17.0+ with CUDA 12.9+ |
+| ❌ Users waste hours debugging | ✅ Tool detects in seconds and provides guidance |
+
+---
+
+### Why This Demonstrates Tool Value
+
+**Without CUDA Healthcheck Tool:**
+- ❌ Users spend hours debugging cryptic `libcuopt.so` errors
+- ❌ Try random pip upgrade commands that fail
+- ❌ Don't realize it's a runtime-locked incompatibility
+- ❌ No clear path to resolution
+
+**With CUDA Healthcheck Tool:**
+- ✅ Detects incompatibility automatically
+- ✅ Explains root cause clearly
+- ✅ Shows it's unfixable by users
+- ✅ Provides actionable steps (report to Databricks, use OR-Tools)
+- ✅ Generates GitHub issue template
+- ✅ Tracks as breaking change for future reference
+
+---
+
+### Tool Usage in Your Notebook
+
+Add this to your Databricks routing notebooks:
+
+```python
+# Cell 1: Install and validate
+%pip install git+https://github.com/TavnerJC/cuda-healthcheck-1.0.git
+dbutils.library.restartPython()
+
+# Cell 2: Check CuOPT compatibility
+from cuda_healthcheck import CUDADetector
+
+detector = CUDADetector()
+env = detector.detect_environment()
+
+# Find CuOPT in detected libraries
+cuopt_lib = next((lib for lib in env.libraries if lib.name == "cuopt"), None)
+
+if cuopt_lib:
+    if cuopt_lib.is_compatible:
+        print("✅ CuOPT is compatible - proceed with GPU routing!")
+    else:
+        print("❌ CuOPT INCOMPATIBILITY DETECTED")
+        print("\nWarnings:")
+        for warning in cuopt_lib.warnings:
+            print(f"  • {warning}")
+        print("\n💡 Use OR-Tools alternative: pip install ortools")
+else:
+    print("📦 CuOPT not installed")
+```
+
+---
+
+### Lessons Learned
+
+1. **Breaking changes aren't always in code** - They can be in runtime environments
+2. **Version mismatches in managed environments are critical** - Users can't fix them
+3. **Detection tools save massive time** - Seconds vs hours of debugging
+4. **Actionable guidance is key** - Not just "error detected" but "here's what to do"
+5. **Real-world use cases matter** - This affects actual Databricks routing accelerator users
+
+---
+
+### Related Files
+
+- **Breaking Change Entry:** `cuda_healthcheck/data/breaking_changes.py`
+- **Detection Logic:** `cuda_healthcheck/cuda_detector/detector.py` (`detect_cuopt()`)
+- **Notebook Enhancement:** `NOTEBOOK1_CUOPT_ENHANCEMENT.md`
+- **GitHub Issue Template:** `GITHUB_ISSUE_TEMPLATE_CUOPT.md`
+
+---
+
 ## 🔗 References
 
 - [Databricks Routing Accelerator](https://github.com/databricks-industry-solutions/routing)
