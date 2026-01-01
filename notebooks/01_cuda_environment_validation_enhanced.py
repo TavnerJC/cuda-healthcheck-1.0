@@ -1,23 +1,48 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # 🔍 CUDA Environment Validation with CuOPT Compatibility Check
+# MAGIC # 🔍 CUDA Environment Validation with Advanced Compatibility Checks
 # MAGIC
-# MAGIC Validate GPU and CUDA configuration before running benchmarks.
-# MAGIC **Enhanced with CuOPT nvJitLink incompatibility detection!**
+# MAGIC Comprehensive GPU and CUDA configuration validation for Databricks.
+# MAGIC **Enhanced with Runtime Detection, Driver Mapping, and PyTorch Compatibility!**
 # MAGIC
 # MAGIC ## What This Notebook Does:
 # MAGIC
 # MAGIC 1. ✅ Detects GPU hardware (Classic ML Runtime & Serverless)
 # MAGIC 2. ✅ Validates CUDA driver and runtime versions
-# MAGIC 3. ✅ **Checks CuOPT compatibility (NEW!)** 🎉
-# MAGIC 4. ✅ Analyzes Databricks Runtime CUDA components
-# MAGIC 5. ✅ Provides CUDA 13.0 upgrade compatibility analysis
-# MAGIC 6. ✅ Lists detailed breaking changes with migration paths
+# MAGIC 3. ✅ **Detects Databricks Runtime version (NEW!)** 🎉
+# MAGIC 4. ✅ **Checks Driver compatibility & immutability (NEW!)** 🎉
+# MAGIC 5. ✅ **Validates PyTorch + Driver compatibility (NEW!)** 🎉
+# MAGIC 6. ✅ **Checks CuOPT nvJitLink compatibility** 🎉
+# MAGIC 7. ✅ Analyzes Databricks Runtime CUDA components
+# MAGIC 8. ✅ Provides CUDA 13.0 upgrade compatibility analysis
+# MAGIC 9. ✅ Lists detailed breaking changes with migration paths
+# MAGIC
+# MAGIC ## Key Features (v0.5.0):
+# MAGIC
+# MAGIC ### Runtime Detection
+# MAGIC - Detects ML Runtime 14.3, 15.1, 15.2, 16.4, etc.
+# MAGIC - Identifies Serverless GPU Compute
+# MAGIC - Maps runtime → CUDA version automatically
+# MAGIC
+# MAGIC ### Driver Mapping
+# MAGIC - Maps runtime → expected driver version
+# MAGIC - Detects **immutable drivers** (14.3, 15.1, 15.2)
+# MAGIC - Warns when drivers CANNOT be upgraded
+# MAGIC
+# MAGIC ### PyTorch Compatibility
+# MAGIC - Detects PyTorch 2.4+ on Runtime 14.3 (incompatible!)
+# MAGIC - Identifies unfixable platform constraints
+# MAGIC - Provides actionable solutions
+# MAGIC
+# MAGIC ### CuOPT Compatibility
+# MAGIC - Detects nvJitLink 12.4.127 vs required 12.9+
+# MAGIC - Identifies platform-level package conflicts
+# MAGIC - Links to GitHub issues for reporting
 # MAGIC
 # MAGIC ## Requirements:
 # MAGIC
 # MAGIC - GPU-enabled Databricks cluster
-# MAGIC - Classic ML Runtime 16.4+ OR Serverless GPU Compute
+# MAGIC - Classic ML Runtime 14.3+ OR Serverless GPU Compute
 # MAGIC - Python 3.10+
 
 # COMMAND ----------
@@ -105,7 +130,160 @@ print("=" * 80)
 
 # COMMAND ----------
 # MAGIC %md
-# MAGIC ## 🚨 Step 4: CuOPT Compatibility Check (CRITICAL for Routing Optimization)
+# MAGIC ## 🏃 Step 4: Databricks Runtime & Driver Analysis (NEW!)
+# MAGIC
+# MAGIC **NEW FEATURE**: Detects Databricks runtime version and validates driver compatibility.
+# MAGIC Critical for detecting PyTorch + Driver incompatibilities that users cannot fix!
+
+# COMMAND ----------
+from cuda_healthcheck.databricks import (
+    detect_databricks_runtime,
+    get_driver_version_for_runtime,
+    check_driver_compatibility,
+)
+
+print("=" * 80)
+print("🏃 DATABRICKS RUNTIME ANALYSIS")
+print("=" * 80)
+
+# Detect runtime
+runtime_info = detect_databricks_runtime()
+
+print(f"\n📊 Runtime Information:")
+print(f"   Runtime Version: {runtime_info['runtime_version']}")
+print(f"   Full Version String: {runtime_info['runtime_version_string']}")
+print(f"   Is Databricks: {runtime_info['is_databricks']}")
+print(f"   Is ML Runtime: {runtime_info['is_ml_runtime']}")
+print(f"   Is GPU Runtime: {runtime_info['is_gpu_runtime']}")
+print(f"   Is Serverless: {runtime_info['is_serverless']}")
+print(f"   Expected CUDA: {runtime_info['cuda_version']}")
+print(f"   Detection Method: {runtime_info['detection_method']}")
+
+# Get driver requirements for this runtime
+if runtime_info['runtime_version']:
+    try:
+        driver_info = get_driver_version_for_runtime(runtime_info['runtime_version'])
+        
+        print(f"\n🔧 Driver Requirements:")
+        print(f"   Expected Driver Range: {driver_info['driver_min_version']}-{driver_info['driver_max_version']}")
+        print(f"   CUDA Version: {driver_info['cuda_version']}")
+        print(f"   Driver Immutable: {driver_info['is_immutable']}")
+        
+        if driver_info['is_immutable']:
+            print(f"\n⚠️  WARNING: This runtime has an IMMUTABLE driver")
+            print(f"   You CANNOT upgrade the driver on this runtime!")
+            print(f"   This may cause PyTorch/CUDA incompatibilities.")
+        
+        # Check actual driver compatibility
+        if env.cuda_driver_version:
+            actual_driver = int(env.cuda_driver_version.split(".")[0])
+            
+            compatibility = check_driver_compatibility(
+                runtime_info['runtime_version'],
+                actual_driver
+            )
+            
+            print(f"\n🔍 Driver Compatibility Check:")
+            print(f"   Actual Driver: {actual_driver}")
+            print(f"   Compatible: {compatibility['is_compatible']}")
+            
+            if not compatibility['is_compatible']:
+                print(f"\n❌ DRIVER INCOMPATIBILITY DETECTED!")
+                print(f"   {compatibility['error_message']}")
+            else:
+                print(f"   ✅ Driver is compatible with this runtime")
+                
+    except ValueError as e:
+        print(f"\n⚠️  Could not get driver requirements: {e}")
+
+print("=" * 80)
+
+# COMMAND ----------
+# MAGIC %md
+# MAGIC ## 🐍 Step 5: PyTorch + Driver Compatibility Check (NEW!)
+# MAGIC
+# MAGIC **CRITICAL**: Checks if your PyTorch version is compatible with the
+# MAGIC immutable driver version on this Databricks runtime.
+
+# COMMAND ----------
+print("=" * 80)
+print("🐍 PYTORCH + DRIVER COMPATIBILITY ANALYSIS")
+print("=" * 80)
+
+# Find PyTorch in detected libraries
+pytorch_lib = next((lib for lib in env.libraries if lib.name.lower() == "torch"), None)
+
+if pytorch_lib and pytorch_lib.version != "Not installed":
+    pytorch_version = pytorch_lib.version
+    pytorch_major_minor = ".".join(pytorch_version.split(".")[:2])
+    
+    print(f"\n📦 PyTorch Detected:")
+    print(f"   Version: {pytorch_version}")
+    print(f"   CUDA Version: {pytorch_lib.cuda_version}")
+    
+    # Get driver info
+    if runtime_info['runtime_version']:
+        try:
+            driver_info = get_driver_version_for_runtime(runtime_info['runtime_version'])
+            
+            print(f"\n🔧 Driver Requirements:")
+            print(f"   Runtime Driver: {driver_info['driver_min_version']}")
+            print(f"   Driver Immutable: {driver_info['is_immutable']}")
+            
+            # Check known PyTorch incompatibilities
+            incompatibilities = []
+            
+            # PyTorch 2.4+ requires driver >= 550
+            if pytorch_major_minor >= "2.4" and driver_info['driver_min_version'] < 550:
+                if driver_info['is_immutable']:
+                    incompatibilities.append({
+                        "severity": "CRITICAL",
+                        "issue": f"PyTorch {pytorch_version} requires driver ≥ 550",
+                        "runtime": f"Runtime {runtime_info['runtime_version']} locked at driver {driver_info['driver_min_version']}",
+                        "fixable": False,
+                        "solution": "Use Runtime 15.1+ or downgrade PyTorch to 2.3.x"
+                    })
+            
+            # PyTorch 2.5+ requires driver >= 560
+            if pytorch_major_minor >= "2.5" and driver_info['driver_min_version'] < 560:
+                if driver_info['is_immutable']:
+                    incompatibilities.append({
+                        "severity": "CRITICAL",
+                        "issue": f"PyTorch {pytorch_version} requires driver ≥ 560",
+                        "runtime": f"Runtime {runtime_info['runtime_version']} locked at driver {driver_info['driver_min_version']}",
+                        "fixable": False,
+                        "solution": "Use Runtime 16.0+ or downgrade PyTorch"
+                    })
+            
+            if incompatibilities:
+                print(f"\n❌ PYTORCH-DRIVER INCOMPATIBILITY DETECTED!")
+                print(f"{'=' * 80}")
+                
+                for incompat in incompatibilities:
+                    print(f"\n🚨 {incompat['severity']}: {incompat['issue']}")
+                    print(f"   Runtime: {incompat['runtime']}")
+                    print(f"   Fixable by User: {incompat['fixable']}")
+                    print(f"   💡 Solution: {incompat['solution']}")
+                
+                print(f"\n{'=' * 80}")
+                print(f"📝 This is a PLATFORM CONSTRAINT - similar to CuOPT nvJitLink issue!")
+                print(f"   Users CANNOT upgrade drivers on managed Databricks runtimes.")
+                print(f"   Report to: https://github.com/databricks-industry-solutions/routing/issues")
+                print(f"{'=' * 80}")
+            else:
+                print(f"\n✅ PyTorch {pytorch_version} is compatible with driver {driver_info['driver_min_version']}")
+                
+        except ValueError as e:
+            print(f"\n⚠️  Could not check PyTorch compatibility: {e}")
+else:
+    print(f"\n📦 PyTorch Status: Not installed")
+    print(f"   ℹ️  No PyTorch compatibility issues to check")
+
+print("=" * 80)
+
+# COMMAND ----------
+# MAGIC %md
+# MAGIC ## 🚨 Step 6: CuOPT Compatibility Check (CRITICAL for Routing Optimization)
 # MAGIC
 # MAGIC **This is the key detection!** Checks if CuOPT can actually load on this
 # MAGIC Databricks runtime, specifically looking for the nvJitLink version mismatch.
@@ -182,7 +360,7 @@ print("=" * 80)
 
 # COMMAND ----------
 # MAGIC %md
-# MAGIC ## 🔍 Step 5: Check Databricks Runtime CUDA Components
+# MAGIC ## 🔍 Step 7: Check Databricks Runtime CUDA Components
 # MAGIC
 # MAGIC Specifically checks the nvJitLink version in the Databricks runtime.
 # MAGIC This is the component that causes CuOPT compatibility issues.
@@ -265,7 +443,7 @@ print("=" * 80)
 
 # COMMAND ----------
 # MAGIC %md
-# MAGIC ## 💯 Step 6: CUDA 13.0 Upgrade Compatibility
+# MAGIC ## 💯 Step 8: CUDA 13.0 Upgrade Compatibility
 # MAGIC
 # MAGIC Tests what would happen if you upgraded to CUDA 13.0.
 # MAGIC Provides a compatibility score and identifies breaking changes.
@@ -307,7 +485,7 @@ print("=" * 80)
 
 # COMMAND ----------
 # MAGIC %md
-# MAGIC ## 📋 Step 7: Detailed Compatibility Issues
+# MAGIC ## 📋 Step 9: Detailed Compatibility Issues
 # MAGIC
 # MAGIC Provides complete details on ALL breaking changes for CUDA 13.0:
 # MAGIC - What breaks
@@ -397,7 +575,7 @@ print("=" * 80)
 
 # COMMAND ----------
 # MAGIC %md
-# MAGIC ## 📊 Step 8: Summary
+# MAGIC ## 📊 Step 10: Summary
 # MAGIC
 # MAGIC Final summary of your environment validation.
 
