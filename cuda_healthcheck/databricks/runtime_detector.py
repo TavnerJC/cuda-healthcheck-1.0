@@ -7,9 +7,10 @@ using multiple fallback methods.
 
 import os
 import re
-import yaml
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
+import yaml
 
 from ..utils.logging_config import get_logger
 
