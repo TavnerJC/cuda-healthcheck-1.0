@@ -468,3 +468,200 @@ def is_databricks_environment() -> bool:
     """
     result = detect_databricks_runtime()
     return result["is_databricks"]
+
+
+# NVIDIA Driver version mappings for Databricks runtimes
+RUNTIME_DRIVER_MAPPING = {
+    # Runtime 13.x series (CUDA 11.8)
+    13.0: {"driver_min": 520, "driver_max": 535, "cuda_version": "11.8"},
+    13.1: {"driver_min": 520, "driver_max": 535, "cuda_version": "11.8"},
+    13.2: {"driver_min": 520, "driver_max": 535, "cuda_version": "11.8"},
+    13.3: {"driver_min": 520, "driver_max": 535, "cuda_version": "11.8"},
+    # Runtime 14.x series (CUDA 12.2)
+    14.0: {"driver_min": 535, "driver_max": 545, "cuda_version": "12.2"},
+    14.1: {"driver_min": 535, "driver_max": 545, "cuda_version": "12.2"},
+    14.2: {"driver_min": 535, "driver_max": 545, "cuda_version": "12.2"},
+    14.3: {"driver_min": 535, "driver_max": 545, "cuda_version": "12.2"},  # Immutable
+    # Runtime 15.x series (CUDA 12.4)
+    15.0: {"driver_min": 550, "driver_max": 560, "cuda_version": "12.4"},
+    15.1: {"driver_min": 550, "driver_max": 560, "cuda_version": "12.4"},  # Immutable
+    15.2: {"driver_min": 550, "driver_max": 560, "cuda_version": "12.4"},  # Immutable
+    15.3: {"driver_min": 550, "driver_max": 560, "cuda_version": "12.4"},
+    15.4: {"driver_min": 550, "driver_max": 560, "cuda_version": "12.4"},
+    # Runtime 16.x series (CUDA 12.6)
+    16.0: {"driver_min": 560, "driver_max": 570, "cuda_version": "12.6"},
+    16.4: {"driver_min": 560, "driver_max": 570, "cuda_version": "12.6"},
+}
+
+
+def get_driver_version_for_runtime(
+    runtime_version: float,
+) -> Dict[str, Any]:
+    """
+    Get the required NVIDIA driver version for a Databricks runtime version.
+
+    This mapping is critical for detecting driver-torch incompatibilities,
+    as Databricks runtimes have immutable driver versions that users cannot change.
+
+    Args:
+        runtime_version: Databricks runtime version (e.g., 14.3, 15.2, 16.4)
+
+    Returns:
+        Dictionary with driver information:
+        - driver_min_version (int): Minimum driver version (e.g., 535, 550, 560)
+        - driver_max_version (int): Maximum driver version
+        - cuda_version (str): CUDA version (e.g., "12.2", "12.4", "12.6")
+        - is_immutable (bool): Whether this runtime's driver is immutable
+
+    Raises:
+        ValueError: If runtime version is unknown
+
+    Examples:
+        >>> # Runtime 14.3 (immutable driver 535.x)
+        >>> result = get_driver_version_for_runtime(14.3)
+        >>> print(result)
+        {
+            "driver_min_version": 535,
+            "driver_max_version": 545,
+            "cuda_version": "12.2",
+            "is_immutable": True
+        }
+
+        >>> # Runtime 15.1 (immutable driver 550.x)
+        >>> result = get_driver_version_for_runtime(15.1)
+        >>> print(result)
+        {
+            "driver_min_version": 550,
+            "driver_max_version": 560,
+            "cuda_version": "12.4",
+            "is_immutable": True
+        }
+
+        >>> # Runtime 15.2+ (immutable driver 550.x)
+        >>> result = get_driver_version_for_runtime(15.2)
+        >>> print(result)
+        {
+            "driver_min_version": 550,
+            "driver_max_version": 560,
+            "cuda_version": "12.4",
+            "is_immutable": True
+        }
+
+        >>> # Runtime 16.4
+        >>> result = get_driver_version_for_runtime(16.4)
+        >>> print(result)
+        {
+            "driver_min_version": 560,
+            "driver_max_version": 570,
+            "cuda_version": "12.6",
+            "is_immutable": False
+        }
+
+        >>> # Unknown runtime
+        >>> result = get_driver_version_for_runtime(99.9)
+        Traceback (most recent call last):
+            ...
+        ValueError: Unknown Databricks runtime version: 99.9
+    """
+    if runtime_version not in RUNTIME_DRIVER_MAPPING:
+        raise ValueError(
+            f"Unknown Databricks runtime version: {runtime_version}. "
+            f"Known versions: {sorted(RUNTIME_DRIVER_MAPPING.keys())}"
+        )
+
+    mapping = RUNTIME_DRIVER_MAPPING[runtime_version]
+
+    # Immutable runtimes (driver versions locked by Databricks)
+    # These are critical because users CANNOT change the driver
+    immutable_runtimes = {14.3, 15.1, 15.2}
+
+    return {
+        "driver_min_version": mapping["driver_min"],
+        "driver_max_version": mapping["driver_max"],
+        "cuda_version": mapping["cuda_version"],
+        "is_immutable": runtime_version in immutable_runtimes,
+    }
+
+
+def check_driver_compatibility(
+    runtime_version: float, detected_driver_version: int
+) -> Dict[str, Any]:
+    """
+    Check if detected driver version is compatible with Databricks runtime.
+
+    This is critical for detecting PyTorch + Driver incompatibilities that
+    users cannot fix in managed Databricks environments.
+
+    Args:
+        runtime_version: Databricks runtime version (e.g., 14.3, 15.2)
+        detected_driver_version: Detected NVIDIA driver version (e.g., 535, 550)
+
+    Returns:
+        Dictionary with compatibility information:
+        - is_compatible (bool): Whether driver is compatible
+        - expected_driver_min (int): Expected minimum driver version
+        - expected_driver_max (int): Expected maximum driver version
+        - detected_driver (int): Detected driver version
+        - cuda_version (str): CUDA version
+        - is_immutable (bool): Whether runtime driver is immutable
+        - error_message (Optional[str]): Error message if incompatible
+
+    Examples:
+        >>> # Compatible: Runtime 14.3 with driver 535
+        >>> result = check_driver_compatibility(14.3, 535)
+        >>> print(result['is_compatible'])
+        True
+
+        >>> # Incompatible: Runtime 14.3 with driver 550
+        >>> result = check_driver_compatibility(14.3, 550)
+        >>> print(result['is_compatible'])
+        False
+        >>> print(result['error_message'])
+        Driver 550 incompatible with Runtime 14.3 (requires 535-545)
+
+        >>> # Compatible: Runtime 15.2 with driver 550
+        >>> result = check_driver_compatibility(15.2, 550)
+        >>> print(result['is_compatible'])
+        True
+    """
+    try:
+        driver_info = get_driver_version_for_runtime(runtime_version)
+    except ValueError as e:
+        return {
+            "is_compatible": False,
+            "expected_driver_min": None,
+            "expected_driver_max": None,
+            "detected_driver": detected_driver_version,
+            "cuda_version": None,
+            "is_immutable": False,
+            "error_message": str(e),
+        }
+
+    min_driver = driver_info["driver_min_version"]
+    max_driver = driver_info["driver_max_version"]
+    is_compatible = min_driver <= detected_driver_version < max_driver
+
+    error_message = None
+    if not is_compatible:
+        if driver_info["is_immutable"]:
+            error_message = (
+                f"CRITICAL: Driver {detected_driver_version} incompatible with "
+                f"Runtime {runtime_version} (requires {min_driver}-{max_driver}). "
+                f"This runtime has an IMMUTABLE driver that users cannot change. "
+                f"This may cause PyTorch/CUDA incompatibilities."
+            )
+        else:
+            error_message = (
+                f"Driver {detected_driver_version} incompatible with "
+                f"Runtime {runtime_version} (requires {min_driver}-{max_driver})"
+            )
+
+    return {
+        "is_compatible": is_compatible,
+        "expected_driver_min": min_driver,
+        "expected_driver_max": max_driver,
+        "detected_driver": detected_driver_version,
+        "cuda_version": driver_info["cuda_version"],
+        "is_immutable": driver_info["is_immutable"],
+        "error_message": error_message,
+    }

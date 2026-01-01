@@ -47,7 +47,9 @@ from .databricks_integration import (
     get_healthchecker,
 )
 from .runtime_detector import (
+    check_driver_compatibility,
     detect_databricks_runtime,
+    get_driver_version_for_runtime,
     get_runtime_info_summary,
 )
 from .serverless import (
@@ -69,6 +71,8 @@ __all__ = [
     # Runtime detection
     "detect_databricks_runtime",
     "get_runtime_info_summary",
+    "get_driver_version_for_runtime",
+    "check_driver_compatibility",
     # Serverless-aware GPU detection
     "detect_gpu_auto",
     "detect_gpu_direct",
