@@ -111,17 +111,13 @@ def detect_databricks_runtime() -> Dict[str, Any]:
     # Try method 1: Environment variable (primary)
     result = _detect_from_env_var()
     if result["is_databricks"]:
-        logger.info(
-            f"Databricks runtime detected via env_var: {result['runtime_version_string']}"
-        )
+        logger.info(f"Databricks runtime detected via env_var: {result['runtime_version_string']}")
         return result
 
     # Try method 2: Parse /databricks/environment.yml
     result = _detect_from_environment_file()
     if result["is_databricks"]:
-        logger.info(
-            f"Databricks runtime detected via file: {result['runtime_version_string']}"
-        )
+        logger.info(f"Databricks runtime detected via file: {result['runtime_version_string']}")
         return result
 
     # Try method 3: Check /Workspace indicator
@@ -138,9 +134,7 @@ def detect_databricks_runtime() -> Dict[str, Any]:
 
     # No Databricks detected
     logger.debug("No Databricks environment detected")
-    return _create_result(
-        is_databricks=False, detection_method="unknown"
-    )
+    return _create_result(is_databricks=False, detection_method="unknown")
 
 
 def _detect_from_env_var() -> Dict[str, Any]:
@@ -319,9 +313,7 @@ def _parse_runtime_string(runtime_str: str) -> Dict[str, Any]:
         result["runtime_version"] = float(f"{major}.{minor}")
 
         # Map runtime version to expected CUDA version
-        result["cuda_version"] = _get_cuda_version_for_runtime(
-            result["runtime_version"]
-        )
+        result["cuda_version"] = _get_cuda_version_for_runtime(result["runtime_version"])
 
     return result
 
@@ -475,4 +467,3 @@ def is_databricks_environment() -> bool:
     """
     result = detect_databricks_runtime()
     return result["is_databricks"]
-

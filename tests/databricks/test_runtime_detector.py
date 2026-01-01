@@ -184,9 +184,7 @@ class TestDetectFromEnvironmentFile:
 
         with patch("cuda_healthcheck.databricks.runtime_detector.Path") as mock_path:
             mock_path.return_value.exists.return_value = True
-            with patch(
-                "builtins.open", mock_open(read_data=yaml.dump(env_data))
-            ):
+            with patch("builtins.open", mock_open(read_data=yaml.dump(env_data))):
                 result = _detect_from_environment_file()
 
                 assert result["is_databricks"] is True
@@ -413,4 +411,3 @@ class TestCreateResult:
         assert result["is_serverless"] is False
         assert result["cuda_version"] is None
         assert result["detection_method"] == "unknown"
-
