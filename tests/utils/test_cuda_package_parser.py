@@ -7,10 +7,12 @@ from cuda_healthcheck.utils.cuda_package_parser import (
     _extract_version,
     _parse_nvidia_package,
     _parse_torch_version,
+    check_cublas_nvjitlink_version_match,
     check_cuopt_nvjitlink_compatibility,
     check_pytorch_cuda_branch_compatibility,
     format_cuda_packages_report,
     parse_cuda_packages,
+    validate_cuda_library_versions,
 )
 
 
@@ -349,3 +351,191 @@ nvidia-nvjitlink-cu12==11.8.89
         assert packages["torch_cuda_branch"] == "cu118"
         assert packages["nvjitlink"]["version"] == "11.8.89"
         assert packages["nvjitlink"]["major_minor"] == "11.8"
+
+
+class TestCheckCublasNvjitlinkVersionMatch:
+    """Test cuBLAS/nvJitLink version matching."""
+
+    def test_matching_versions_12_4(self):
+        """Test matching versions (12.4)."""
+        result = check_cublas_nvjitlink_version_match("12.4.5.8", "12.4.127")
+
+        assert result["is_mismatch"] is False
+        assert result["severity"] == "OK"
+        assert result["cublas_major_minor"] == "12.4"
+        assert result["nvjitlink_major_minor"] == "12.4"
+        assert result["error_message"] is None
+        assert result["fix_command"] is None
+
+    def test_matching_versions_12_1(self):
+        """Test matching versions (12.1)."""
+        result = check_cublas_nvjitlink_version_match("12.1.3.1", "12.1.105")
+
+        assert result["is_mismatch"] is False
+        assert result["severity"] == "OK"
+        assert result["cublas_major_minor"] == "12.1"
+        assert result["nvjitlink_major_minor"] == "12.1"
+
+    def test_mismatch_12_1_vs_12_4(self):
+        """Test version mismatch (12.1 vs 12.4)."""
+        result = check_cublas_nvjitlink_version_match("12.1.3.1", "12.4.127")
+
+        assert result["is_mismatch"] is True
+        assert result["severity"] == "BLOCKER"
+        assert result["cublas_major_minor"] == "12.1"
+        assert result["nvjitlink_major_minor"] == "12.4"
+        assert "CRITICAL" in result["error_message"]
+        assert "undefined symbol" in result["error_message"]
+        assert "__nvJitLinkAddData_12_1" in result["error_message"]
+        assert result["fix_command"] == "pip install --upgrade nvidia-nvjitlink-cu12==12.1.*"
+
+    def test_mismatch_12_4_vs_12_1(self):
+        """Test version mismatch (12.4 vs 12.1)."""
+        result = check_cublas_nvjitlink_version_match("12.4.5.8", "12.1.105")
+
+        assert result["is_mismatch"] is True
+        assert result["severity"] == "BLOCKER"
+        assert "__nvJitLinkAddData_12_4" in result["error_message"]
+        assert result["fix_command"] == "pip install --upgrade nvidia-nvjitlink-cu12==12.4.*"
+
+    def test_missing_nvjitlink(self):
+        """Test missing nvJitLink."""
+        result = check_cublas_nvjitlink_version_match("12.4.5.8", None)
+
+        assert result["is_mismatch"] is True
+        assert result["severity"] == "BLOCKER"
+        assert "NOT INSTALLED" in result["error_message"]
+        assert "12.4.*" in result["fix_command"]
+
+    def test_missing_cublas(self):
+        """Test missing cuBLAS."""
+        result = check_cublas_nvjitlink_version_match(None, "12.4.127")
+
+        assert result["is_mismatch"] is True
+        assert result["severity"] == "BLOCKER"
+        assert "NOT INSTALLED" in result["error_message"]
+
+    def test_both_missing(self):
+        """Test both libraries missing."""
+        result = check_cublas_nvjitlink_version_match(None, None)
+
+        assert result["is_mismatch"] is True
+        assert result["severity"] == "BLOCKER"
+        assert "Missing required libraries" in result["error_message"]
+
+    def test_mismatch_11_8_vs_12_4(self):
+        """Test major version mismatch (11.8 vs 12.4)."""
+        result = check_cublas_nvjitlink_version_match("11.8.0.0", "12.4.127")
+
+        assert result["is_mismatch"] is True
+        assert result["severity"] == "BLOCKER"
+        assert result["cublas_major_minor"] == "11.8"
+        assert result["nvjitlink_major_minor"] == "12.4"
+
+
+class TestValidateCudaLibraryVersions:
+    """Test comprehensive validation."""
+
+    def test_all_compatible(self):
+        """Test fully compatible environment."""
+        packages = {
+            "torch": "2.4.1",
+            "torch_cuda_branch": "cu124",
+            "cublas": {"version": "12.4.5.8", "major_minor": "12.4"},
+            "nvjitlink": {"version": "12.4.127", "major_minor": "12.4"},
+            "other_nvidia": {},
+        }
+
+        result = validate_cuda_library_versions(packages)
+
+        assert result["all_compatible"] is True
+        assert len(result["blockers"]) == 0
+        assert result["checks_passed"] > 0
+
+    def test_cublas_nvjitlink_mismatch(self):
+        """Test cuBLAS/nvJitLink mismatch detected."""
+        packages = {
+            "torch": "2.4.1",
+            "torch_cuda_branch": "cu124",
+            "cublas": {"version": "12.1.3.1", "major_minor": "12.1"},
+            "nvjitlink": {"version": "12.4.127", "major_minor": "12.4"},
+            "other_nvidia": {},
+        }
+
+        result = validate_cuda_library_versions(packages)
+
+        assert result["all_compatible"] is False
+        assert len(result["blockers"]) == 1
+        assert result["blockers"][0]["severity"] == "BLOCKER"
+        assert "cuBLAS/nvJitLink" in result["blockers"][0]["check"]
+        assert result["blockers"][0]["fix_command"] is not None
+
+    def test_cuopt_incompatibility_warning(self):
+        """Test CuOPT incompatibility creates warning."""
+        packages = {
+            "torch": "2.4.1",
+            "torch_cuda_branch": "cu124",
+            "cublas": {"version": "12.4.5.8", "major_minor": "12.4"},
+            "nvjitlink": {"version": "12.4.127", "major_minor": "12.4"},
+            "other_nvidia": {},
+        }
+
+        result = validate_cuda_library_versions(packages)
+
+        # cuBLAS/nvJitLink match, so no blockers
+        assert len(result["blockers"]) == 0
+        # But CuOPT incompatibility should create a warning
+        assert len(result["warnings"]) == 1
+        assert "CuOPT" in result["warnings"][0]["check"]
+
+    def test_multiple_issues(self):
+        """Test multiple compatibility issues."""
+        packages = {
+            "torch": "2.4.1",
+            "torch_cuda_branch": "cu124",
+            "cublas": {"version": "12.1.3.1", "major_minor": "12.1"},
+            "nvjitlink": {"version": "12.4.127", "major_minor": "12.4"},
+            "other_nvidia": {},
+        }
+
+        result = validate_cuda_library_versions(packages)
+
+        assert result["all_compatible"] is False
+        assert result["checks_failed"] > 0
+        # Should have cuBLAS/nvJitLink mismatch as blocker
+        assert len(result["blockers"]) >= 1
+
+
+class TestRealWorldScenariosExtended:
+    """Test extended real-world scenarios."""
+
+    def test_databricks_ml_runtime_16_4_mismatch(self):
+        """Test Databricks ML Runtime 16.4 with cuBLAS/nvJitLink mismatch."""
+        pip_output = """
+torch==2.4.1+cu124
+nvidia-cublas-cu12==12.1.3.1
+nvidia-nvjitlink-cu12==12.4.127
+"""
+        packages = parse_cuda_packages(pip_output)
+        result = check_cublas_nvjitlink_version_match(
+            packages["cublas"]["version"], packages["nvjitlink"]["version"]
+        )
+
+        assert result["is_mismatch"] is True
+        assert "12.1" in result["error_message"]
+        assert "12.4" in result["error_message"]
+
+    def test_databricks_ml_runtime_16_4_correct(self):
+        """Test Databricks ML Runtime 16.4 with correct versions."""
+        pip_output = """
+torch==2.4.1+cu124
+nvidia-cublas-cu12==12.4.5.8
+nvidia-nvjitlink-cu12==12.4.127
+"""
+        packages = parse_cuda_packages(pip_output)
+        result = check_cublas_nvjitlink_version_match(
+            packages["cublas"]["version"], packages["nvjitlink"]["version"]
+        )
+
+        assert result["is_mismatch"] is False
+        assert result["severity"] == "OK"

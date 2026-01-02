@@ -430,3 +430,201 @@ def check_pytorch_cuda_branch_compatibility(
         )
 
     return result
+
+
+def check_cublas_nvjitlink_version_match(
+    cublas_version: str, nvjitlink_version: str
+) -> Dict[str, Any]:
+    """
+    Detect nvJitLink version mismatches with cuBLAS.
+
+    Critical Rule: cuBLAS and nvJitLink major.minor versions MUST match.
+    Mismatch causes runtime errors like:
+    "undefined symbol: __nvJitLinkAddData_12_X, version libnvJitLink.so.12"
+
+    This is different from the CuOPT incompatibility - this affects ALL CUDA
+    libraries that use JIT compilation (cuBLAS, cuSolver, cuFFT, etc.).
+
+    Args:
+        cublas_version: cuBLAS version string (e.g., "12.1.3.1", "12.4.5.8")
+        nvjitlink_version: nvJitLink version string (e.g., "12.1.105", "12.4.127")
+
+    Returns:
+        Validation result:
+        {
+            'is_mismatch': bool,           # True if versions don't match
+            'severity': str,               # 'BLOCKER' or 'OK'
+            'cublas_major_minor': str,     # e.g., "12.1"
+            'nvjitlink_major_minor': str,  # e.g., "12.4"
+            'error_message': str or None,  # Detailed error with fix
+            'fix_command': str or None     # pip command to fix the issue
+        }
+
+    Examples:
+        >>> # Compatible versions (both 12.4)
+        >>> result = check_cublas_nvjitlink_version_match("12.4.5.8", "12.4.127")
+        >>> result['is_mismatch']
+        False
+        >>> result['severity']
+        'OK'
+
+        >>> # INCOMPATIBLE versions (12.1 vs 12.4)
+        >>> result = check_cublas_nvjitlink_version_match("12.1.3.1", "12.4.127")
+        >>> result['is_mismatch']
+        True
+        >>> result['severity']
+        'BLOCKER'
+        >>> print(result['error_message'])
+        ❌ CRITICAL: cuBLAS/nvJitLink version mismatch detected!
+        <BLANKLINE>
+        cuBLAS version: 12.1.3.1 (major.minor: 12.1)
+        nvJitLink version: 12.4.127 (major.minor: 12.4)
+        <BLANKLINE>
+        ⚠️  This will cause runtime errors:
+           "undefined symbol: __nvJitLinkAddData_12_1, version libnvJitLink.so.12"
+        <BLANKLINE>
+        📋 Fix: Install matching nvJitLink version
+        >>> print(result['fix_command'])
+        pip install --upgrade nvidia-nvjitlink-cu12==12.1.*
+
+        >>> # Databricks ML Runtime 16.4 scenario
+        >>> result = check_cublas_nvjitlink_version_match("12.4.5.8", "12.4.127")
+        >>> result['is_mismatch']
+        False
+    """
+    result = {
+        "is_mismatch": False,
+        "severity": "OK",
+        "cublas_major_minor": None,
+        "nvjitlink_major_minor": None,
+        "error_message": None,
+        "fix_command": None,
+    }
+
+    # Handle None/empty inputs
+    if not cublas_version or not nvjitlink_version:
+        result["is_mismatch"] = True
+        result["severity"] = "BLOCKER"
+        result["error_message"] = (
+            "❌ CRITICAL: Missing required libraries!\n\n"
+            f"cuBLAS version: {cublas_version or 'NOT INSTALLED'}\n"
+            f"nvJitLink version: {nvjitlink_version or 'NOT INSTALLED'}\n\n"
+            "Both libraries are required for CUDA operations."
+        )
+        if not nvjitlink_version and cublas_version:
+            cublas_mm = _extract_major_minor(cublas_version)
+            result["fix_command"] = f"pip install nvidia-nvjitlink-cu12=={cublas_mm}.*"
+        return result
+
+    # Extract major.minor versions
+    cublas_major_minor = _extract_major_minor(cublas_version)
+    nvjitlink_major_minor = _extract_major_minor(nvjitlink_version)
+
+    result["cublas_major_minor"] = cublas_major_minor
+    result["nvjitlink_major_minor"] = nvjitlink_major_minor
+
+    # Check if they match
+    if cublas_major_minor == nvjitlink_major_minor:
+        result["is_mismatch"] = False
+        result["severity"] = "OK"
+        return result
+
+    # Version mismatch detected - CRITICAL ERROR
+    result["is_mismatch"] = True
+    result["severity"] = "BLOCKER"
+    result["error_message"] = (
+        "❌ CRITICAL: cuBLAS/nvJitLink version mismatch detected!\n\n"
+        f"cuBLAS version: {cublas_version} (major.minor: {cublas_major_minor})\n"
+        f"nvJitLink version: {nvjitlink_version} (major.minor: {nvjitlink_major_minor})\n\n"
+        f"⚠️  This will cause runtime errors:\n"
+        f'   "undefined symbol: __nvJitLinkAddData_{cublas_major_minor.replace(".", "_")}, '
+        f'version libnvJitLink.so.{cublas_major_minor.split(".")[0]}"\n\n'
+        f"📋 Required: cuBLAS and nvJitLink major.minor versions MUST match\n"
+        f"   cuBLAS {cublas_major_minor}.x requires nvJitLink {cublas_major_minor}.x"
+    )
+    result["fix_command"] = f"pip install --upgrade nvidia-nvjitlink-cu12=={cublas_major_minor}.*"
+
+    return result
+
+
+def validate_cuda_library_versions(packages: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Validate all CUDA library version compatibility.
+
+    Runs multiple compatibility checks:
+    1. cuBLAS/nvJitLink version match (CRITICAL)
+    2. CuOPT nvJitLink compatibility
+    3. PyTorch CUDA branch compatibility (if runtime version provided)
+
+    Args:
+        packages: Output from parse_cuda_packages()
+
+    Returns:
+        Comprehensive validation result:
+        {
+            'all_compatible': bool,
+            'blockers': List[Dict],           # BLOCKER severity issues
+            'warnings': List[Dict],           # WARNING severity issues
+            'checks_run': int,
+            'checks_passed': int,
+            'checks_failed': int
+        }
+
+    Examples:
+        >>> packages = parse_cuda_packages(pip_output)
+        >>> validation = validate_cuda_library_versions(packages)
+        >>> if not validation['all_compatible']:
+        ...     for blocker in validation['blockers']:
+        ...         print(blocker['error_message'])
+        ...         print(f"Fix: {blocker['fix_command']}")
+    """
+    result = {
+        "all_compatible": True,
+        "blockers": [],
+        "warnings": [],
+        "checks_run": 0,
+        "checks_passed": 0,
+        "checks_failed": 0,
+    }
+
+    # Check 1: cuBLAS/nvJitLink version match (CRITICAL)
+    cublas_version = packages["cublas"]["version"]
+    nvjitlink_version = packages["nvjitlink"]["version"]
+
+    if cublas_version or nvjitlink_version:
+        result["checks_run"] += 1
+        mismatch_check = check_cublas_nvjitlink_version_match(cublas_version, nvjitlink_version)
+
+        if mismatch_check["is_mismatch"]:
+            result["checks_failed"] += 1
+            result["all_compatible"] = False
+            result["blockers"].append(
+                {
+                    "check": "cuBLAS/nvJitLink Version Match",
+                    "severity": "BLOCKER",
+                    "error_message": mismatch_check["error_message"],
+                    "fix_command": mismatch_check["fix_command"],
+                }
+            )
+        else:
+            result["checks_passed"] += 1
+
+    # Check 2: CuOPT nvJitLink compatibility (if needed)
+    if nvjitlink_version:
+        result["checks_run"] += 1
+        cuopt_compat = check_cuopt_nvjitlink_compatibility(packages)
+
+        if not cuopt_compat["is_compatible"]:
+            result["checks_failed"] += 1
+            result["warnings"].append(
+                {
+                    "check": "CuOPT nvJitLink Compatibility",
+                    "severity": "WARNING",
+                    "error_message": cuopt_compat["error_message"],
+                    "fix_command": "Contact Databricks support - platform constraint",
+                }
+            )
+        else:
+            result["checks_passed"] += 1
+
+    return result
