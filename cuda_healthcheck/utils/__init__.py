@@ -14,6 +14,10 @@ from cuda_healthcheck.utils.cuda_package_parser import (
     validate_torch_branch_compatibility,
 )
 from cuda_healthcheck.utils.logging_config import get_logger
+from cuda_healthcheck.utils.recommendations import (
+    format_recommendations_for_notebook,
+    generate_recommendations,
+)
 from cuda_healthcheck.utils.retry import retry_on_failure
 
 __all__ = [
@@ -27,6 +31,9 @@ __all__ = [
     "detect_mixed_cuda_versions",
     "validate_torch_branch_compatibility",
     "validate_cuda_library_versions",
+    # Recommendations
+    "generate_recommendations",
+    "format_recommendations_for_notebook",
     # Existing utilities
     "get_logger",
     "retry_on_failure",
