@@ -513,3 +513,244 @@ def get_feature_validation_report(
             "gpu_memory_gb": gpu_memory_gb,
         },
     }
+
+
+def diagnose_cuda_availability(
+    features_enabled: Dict[str, DataDesignerFeature],
+    runtime_version: Optional[float] = None,
+    torch_cuda_branch: Optional[str] = None,
+    driver_version: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Test torch.cuda availability with feature-aware diagnostics.
+
+    This function intelligently diagnoses CUDA availability issues based on
+    which DataDesigner features are enabled. If no features require CUDA,
+    it skips the check. If features require CUDA but it's unavailable, it
+    provides root cause analysis and fix commands.
+
+    Args:
+        features_enabled: Dictionary of detected DataDesigner features
+        runtime_version: Databricks runtime version (e.g., 14.3, 15.2)
+        torch_cuda_branch: PyTorch CUDA branch (e.g., "cu120", "cu124")
+        driver_version: NVIDIA driver version (e.g., 535, 550)
+
+    Returns:
+        Dictionary with CUDA availability status and diagnostics
+
+    Example (CUDA required but unavailable):
+        >>> features = detect_enabled_features()
+        >>> result = diagnose_cuda_availability(
+        ...     features, runtime_version=14.3, torch_cuda_branch="cu124"
+        ... )
+        >>> print(result['severity'])
+        'BLOCKER'
+        >>> print(result['diagnostics']['issue'])
+        'Driver 535 (too old) for cu124 (requires 550+)'
+
+    Example (CUDA not required):
+        >>> features = detect_enabled_features()  # cloud_llm_inference only
+        >>> result = diagnose_cuda_availability(features)
+        >>> print(result['feature_requires_cuda'])
+        False
+        >>> print(result['severity'])
+        None
+    """
+    # Check if any enabled feature requires CUDA
+    requires_cuda = any(
+        f.is_enabled and f.requirements.requires_cuda for f in features_enabled.values()
+    )
+
+    result = {
+        "feature_requires_cuda": requires_cuda,
+        "cuda_available": False,
+        "gpu_device": None,
+        "diagnostics": {
+            "driver_version": driver_version,
+            "torch_cuda_branch": torch_cuda_branch,
+            "runtime_version": runtime_version,
+            "expected_driver_min": None,
+            "is_driver_compatible": None,
+            "issue": None,
+            "root_cause": None,
+        },
+        "severity": None,
+        "fix_command": None,
+        "fix_options": [],
+    }
+
+    # If no features require CUDA, skip the check
+    if not requires_cuda:
+        result["severity"] = "SKIPPED"
+        result["diagnostics"]["issue"] = "No enabled features require CUDA"
+        logger.info("CUDA check skipped - no features require CUDA")
+        return result
+
+    # Import driver mapping utilities
+    try:
+        from cuda_healthcheck.databricks import get_driver_version_for_runtime
+    except ImportError:
+        logger.warning("Could not import driver mapping utilities")
+        get_driver_version_for_runtime = None
+
+    # Try to import torch and check CUDA availability
+    torch_import_failed = False
+    try:
+        import torch
+
+        result["cuda_available"] = torch.cuda.is_available()
+
+        if result["cuda_available"]:
+            # Get GPU device info
+            try:
+                result["gpu_device"] = torch.cuda.get_device_name(0)
+                result["severity"] = "OK"
+                result["diagnostics"]["issue"] = "CUDA is available"
+                logger.info(f"CUDA is available: {result['gpu_device']}")
+                return result
+            except Exception as e:
+                logger.debug(f"Could not get GPU device name: {e}")
+                result["gpu_device"] = "Unknown GPU"
+
+    except ImportError:
+        torch_import_failed = True
+        result["diagnostics"]["root_cause"] = "torch_not_installed"
+        result["diagnostics"]["issue"] = "PyTorch is not installed"
+        result["severity"] = "BLOCKER"
+        result["fix_command"] = (
+            "pip install torch --index-url https://download.pytorch.org/whl/cu121"
+        )
+        result["fix_options"] = [
+            "pip install torch --index-url https://download.pytorch.org/whl/cu121",
+            "pip install torch --index-url https://download.pytorch.org/whl/cu124",
+        ]
+        logger.error("PyTorch is not installed")
+        return result
+
+    # If CUDA is not available, diagnose why
+    if not result["cuda_available"]:
+        result["severity"] = "BLOCKER"
+
+        # Diagnosis 1: Check driver version compatibility with CUDA branch
+        if driver_version and torch_cuda_branch and runtime_version:
+            # Map runtime to expected driver
+            if get_driver_version_for_runtime:
+                try:
+                    driver_info = get_driver_version_for_runtime(runtime_version)
+                    expected_min = driver_info["driver_min_version"]
+                    expected_max = driver_info["driver_max_version"]
+                    result["diagnostics"]["expected_driver_min"] = expected_min
+
+                    # Check if driver is compatible
+                    is_compatible = expected_min <= driver_version <= expected_max
+
+                    result["diagnostics"]["is_driver_compatible"] = is_compatible
+
+                    if not is_compatible:
+                        # Driver is out of expected range
+                        result["diagnostics"]["root_cause"] = "driver_version_mismatch"
+                        result["diagnostics"]["issue"] = (
+                            f"Driver {driver_version} incompatible with Runtime "
+                            f"{runtime_version} (expected {expected_min}-{expected_max})"
+                        )
+
+                except Exception as e:
+                    logger.debug(f"Could not get driver info: {e}")
+
+            # Check CUDA branch compatibility with driver
+            cuda_branch_to_min_driver = {
+                "cu118": 450,
+                "cu120": 525,
+                "cu121": 525,
+                "cu124": 550,
+            }
+
+            if torch_cuda_branch in cuda_branch_to_min_driver:
+                min_driver_needed = cuda_branch_to_min_driver[torch_cuda_branch]
+                result["diagnostics"]["expected_driver_min"] = min_driver_needed
+
+                if driver_version < min_driver_needed:
+                    result["diagnostics"]["root_cause"] = "driver_too_old"
+                    result["diagnostics"]["issue"] = (
+                        f"Driver {driver_version} (too old) for {torch_cuda_branch} "
+                        f"(requires {min_driver_needed}+)"
+                    )
+                    result["diagnostics"]["is_driver_compatible"] = False
+
+                    # Provide fix options
+                    if runtime_version and runtime_version < 15.2:
+                        # Runtime 14.3 has immutable driver 535
+                        result["fix_options"] = [
+                            (
+                                f"Option 1: Downgrade PyTorch to cu120: "
+                                f"pip install torch --index-url "
+                                f"https://download.pytorch.org/whl/cu120"
+                            ),
+                            (
+                                f"Option 2: Upgrade Databricks runtime to 15.2+ "
+                                f"(supports CUDA 12.4 and Driver 550)"
+                            ),
+                        ]
+                        result["fix_command"] = result["fix_options"][0]
+                    else:
+                        result["fix_options"] = [
+                            (
+                                f"Upgrade NVIDIA driver to {min_driver_needed}+ "
+                                f"(contact Databricks support)"
+                            )
+                        ]
+                        result["fix_command"] = result["fix_options"][0]
+
+        # Diagnosis 2: Check if torch was compiled with CUDA support
+        if not result["diagnostics"]["root_cause"]:
+            try:
+                import torch
+
+                if not torch.cuda.is_available():
+                    # Check if torch was built with CUDA
+                    if not hasattr(torch, "version") or not hasattr(torch.version, "cuda"):
+                        result["diagnostics"]["root_cause"] = "torch_no_cuda_support"
+                        result["diagnostics"]["issue"] = "PyTorch was not built with CUDA support"
+                        result["fix_command"] = (
+                            "pip uninstall torch && pip install torch "
+                            "--index-url https://download.pytorch.org/whl/cu121"
+                        )
+                        result["fix_options"] = [
+                            (
+                                "Reinstall PyTorch with CUDA support: "
+                                "pip install torch --index-url "
+                                "https://download.pytorch.org/whl/cu121"
+                            )
+                        ]
+                    else:
+                        result["diagnostics"]["root_cause"] = "cuda_libraries_missing"
+                        result["diagnostics"][
+                            "issue"
+                        ] = "CUDA libraries are missing or incompatible"
+                        result["fix_command"] = (
+                            "pip install --upgrade nvidia-cuda-runtime-cu12 "
+                            "nvidia-cublas-cu12 nvidia-cudnn-cu12"
+                        )
+                        result["fix_options"] = [
+                            "Reinstall CUDA libraries: "
+                            "pip install --upgrade nvidia-cuda-runtime-cu12 "
+                            "nvidia-cublas-cu12",
+                            "Check /usr/local/cuda symlink exists",
+                            "Contact Databricks support if on managed cluster",
+                        ]
+            except Exception as e:
+                logger.debug(f"Error during torch diagnostics: {e}")
+
+        # Diagnosis 3: Check for GPU device
+        if not result["diagnostics"]["root_cause"]:
+            result["diagnostics"]["root_cause"] = "no_gpu_device"
+            result["diagnostics"][
+                "issue"
+            ] = "No GPU device detected - ensure running on GPU-enabled cluster"
+            result["fix_command"] = "Switch to a GPU-enabled Databricks cluster (A10G, A100, T4)"
+            result["fix_options"] = [
+                "Option 1: Switch to GPU cluster in Databricks",
+                "Option 2: Use cloud_llm_inference instead (no GPU required)",
+            ]
+
+    return result

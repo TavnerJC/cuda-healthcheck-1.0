@@ -78,6 +78,7 @@ try:
         DataDesignerFeature,
         FeatureRequirements,
         detect_enabled_features,
+        diagnose_cuda_availability,
         get_feature_validation_report,
         validate_feature_requirements,
     )
@@ -88,6 +89,7 @@ except ImportError:
     DataDesignerFeature = None  # type: ignore[assignment,misc]
     FeatureRequirements = None  # type: ignore[assignment,misc]
     detect_enabled_features = None  # type: ignore[assignment]
+    diagnose_cuda_availability = None  # type: ignore[assignment]
     get_feature_validation_report = None  # type: ignore[assignment]
     validate_feature_requirements = None  # type: ignore[assignment]
 
@@ -115,6 +117,7 @@ __all__ = [
     "detect_enabled_features",
     "get_feature_validation_report",
     "validate_feature_requirements",
+    "diagnose_cuda_availability",
     # Utilities
     "get_logger",
     "retry_on_failure",

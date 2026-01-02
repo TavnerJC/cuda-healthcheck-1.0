@@ -10,6 +10,7 @@ from .datadesigner_detector import (
     DataDesignerFeature,
     FeatureRequirements,
     detect_enabled_features,
+    diagnose_cuda_availability,
     get_feature_validation_report,
     validate_feature_requirements,
 )
@@ -20,4 +21,5 @@ __all__ = [
     "detect_enabled_features",
     "validate_feature_requirements",
     "get_feature_validation_report",
+    "diagnose_cuda_availability",
 ]
