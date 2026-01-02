@@ -18,6 +18,7 @@
 # MAGIC 9. ✅ Provides CUDA 13.0 upgrade compatibility analysis
 # MAGIC 10. ✅ Lists detailed breaking changes with migration paths
 # MAGIC 11. ✅ **Detects NeMo DataDesigner features & validates requirements (NEW!)** 🎉
+# MAGIC 12. ✅ **Intelligent CUDA diagnostics with root cause analysis (NEW!)** 🎉
 # MAGIC
 # MAGIC ## Key Features (v0.5.0):
 # MAGIC
@@ -58,6 +59,13 @@
 # MAGIC - Detects nvJitLink 12.4.127 vs required 12.9+
 # MAGIC - Identifies platform-level package conflicts
 # MAGIC - Links to GitHub issues for reporting
+# MAGIC
+# MAGIC ### Intelligent CUDA Diagnostics (NEW!)
+# MAGIC - **Feature-aware** - Only checks CUDA if needed by enabled features
+# MAGIC - **Root cause analysis** - 6 diagnostic categories (driver_too_old, torch_not_installed, etc.)
+# MAGIC - **Smart fixes** - Provides specific pip commands with context
+# MAGIC - **Platform-aware** - Understands Runtime 14.3 immutable drivers
+# MAGIC - **Multiple solutions** - Offers alternatives when available
 # MAGIC
 # MAGIC ## Requirements:
 # MAGIC
@@ -957,9 +965,10 @@ print("=" * 80)
 
 # COMMAND ----------
 # MAGIC %md
-# MAGIC ## 🎯 Step 11: NeMo DataDesigner Feature Detection (NEW!)
+# MAGIC ## 🎯 Step 11: NeMo DataDesigner Feature Detection + CUDA Diagnostics (NEW!)
 # MAGIC
-# MAGIC Automatically detects enabled DataDesigner features and validates CUDA requirements.
+# MAGIC Automatically detects enabled DataDesigner features and validates CUDA requirements
+# MAGIC with **intelligent root cause analysis** when issues are found.
 # MAGIC
 # MAGIC ### Supported Features:
 # MAGIC
@@ -968,11 +977,17 @@ print("=" * 80)
 # MAGIC 3. **sampler_generation** - Pure Python samplers (no GPU/CUDA required)
 # MAGIC 4. **seed_processing** - Data loading (no GPU/CUDA required)
 # MAGIC
-# MAGIC Detection methods:
+# MAGIC ### Detection Methods:
 # MAGIC - Environment variables (`DATADESIGNER_INFERENCE_MODE`, etc.)
 # MAGIC - Config files (JSON/YAML)
 # MAGIC - Installed packages (`nemo.datadesigner.*`)
 # MAGIC - Notebook cell analysis
+# MAGIC
+# MAGIC ### Intelligent CUDA Diagnostics (NEW!):
+# MAGIC - **Feature-aware skipping** - Only checks CUDA if features need it
+# MAGIC - **Root cause analysis** - Identifies exactly why CUDA is unavailable (6 categories)
+# MAGIC - **Smart fix suggestions** - Provides specific commands with context
+# MAGIC - **Driver compatibility** - Understands immutable drivers on Runtime 14.3
 
 # COMMAND ----------
 from cuda_healthcheck.nemo import (
@@ -1010,6 +1025,82 @@ else:
             print(f"      ✓ {feature_name}")
             print(f"        Detection: {feature.detection_method}")
             print(f"        Description: {feature.requirements.description}")
+
+# COMMAND ----------
+# MAGIC %md
+# MAGIC ### Intelligent CUDA Availability Diagnostics (NEW!)
+# MAGIC
+# MAGIC **Feature-aware diagnostics** - automatically determines if CUDA is actually needed,
+# MAGIC then intelligently diagnoses any issues with root cause analysis and fix commands.
+
+# COMMAND ----------
+from cuda_healthcheck.nemo import diagnose_cuda_availability
+
+print("\n🔬 Running Intelligent CUDA Diagnostics...")
+print("=" * 80)
+
+# Get driver version if available
+driver_version = None
+if env.cuda_driver_version != "Not available":
+    try:
+        driver_version = int(env.cuda_driver_version.split('.')[0])
+    except:
+        pass
+
+# Run intelligent diagnostics
+cuda_diag = diagnose_cuda_availability(
+    features_enabled=features,
+    runtime_version=runtime_info.get('runtime_version'),
+    torch_cuda_branch=packages.get('torch_cuda_branch'),
+    driver_version=driver_version
+)
+
+print(f"\n📊 CUDA Diagnostics Result:")
+print(f"   Feature Requires CUDA: {cuda_diag['feature_requires_cuda']}")
+print(f"   CUDA Available: {cuda_diag['cuda_available']}")
+print(f"   Severity: {cuda_diag['severity']}")
+
+if cuda_diag['gpu_device']:
+    print(f"   GPU Device: {cuda_diag['gpu_device']}")
+
+# Show diagnostics details
+print(f"\n🔍 Diagnostics:")
+diag = cuda_diag['diagnostics']
+print(f"   Runtime: {diag['runtime_version']}")
+print(f"   Driver: {diag['driver_version']}")
+print(f"   CUDA Branch: {diag['torch_cuda_branch']}")
+print(f"   Issue: {diag['issue']}")
+
+if diag['root_cause']:
+    print(f"   Root Cause: {diag['root_cause']}")
+if diag['expected_driver_min']:
+    print(f"   Expected Driver Min: {diag['expected_driver_min']}+")
+if diag['is_driver_compatible'] is not None:
+    print(f"   Driver Compatible: {diag['is_driver_compatible']}")
+
+# Show fix commands if there are blockers
+if cuda_diag['severity'] == 'BLOCKER':
+    print(f"\n🚨 BLOCKER DETECTED!")
+    print("=" * 80)
+    print(f"❌ Issue: {diag['issue']}")
+    
+    if cuda_diag['fix_options']:
+        print(f"\n🔧 Fix Options:")
+        for i, option in enumerate(cuda_diag['fix_options'], 1):
+            print(f"   {i}. {option}")
+    elif cuda_diag['fix_command']:
+        print(f"\n🔧 Fix Command:")
+        print(f"   {cuda_diag['fix_command']}")
+    
+    print("=" * 80)
+    
+elif cuda_diag['severity'] == 'OK':
+    print(f"\n✅ CUDA is working correctly!")
+    
+elif cuda_diag['severity'] == 'SKIPPED':
+    print(f"\n⏭️  CUDA check skipped - no enabled features require CUDA")
+
+print("=" * 80)
 
 # COMMAND ----------
 # MAGIC %md
