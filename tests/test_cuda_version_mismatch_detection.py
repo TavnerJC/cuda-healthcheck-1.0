@@ -5,8 +5,9 @@ Tests cover nvJitLink mismatches, mixed CUDA versions, driver incompatibilities,
 and feature-based requirements validation.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from cuda_healthcheck.utils import (
     check_cublas_nvjitlink_version_match,
@@ -15,7 +16,6 @@ from cuda_healthcheck.utils import (
     validate_cuda_library_versions,
     validate_torch_branch_compatibility,
 )
-
 
 # ============================================================================
 # FIXTURES - Mock Data
