@@ -72,6 +72,25 @@ except ImportError:
 # Utilities
 from .utils import get_logger, retry_on_failure
 
+# NeMo DataDesigner integration (optional - may not be available in all environments)
+try:
+    from .nemo import (
+        DataDesignerFeature,
+        FeatureRequirements,
+        detect_enabled_features,
+        get_feature_validation_report,
+        validate_feature_requirements,
+    )
+
+    HAS_NEMO = True
+except ImportError:
+    HAS_NEMO = False
+    DataDesignerFeature = None  # type: ignore[assignment,misc]
+    FeatureRequirements = None  # type: ignore[assignment,misc]
+    detect_enabled_features = None  # type: ignore[assignment]
+    get_feature_validation_report = None  # type: ignore[assignment]
+    validate_feature_requirements = None  # type: ignore[assignment]
+
 __all__ = [
     # Core detection
     "CUDADetector",
@@ -90,9 +109,16 @@ __all__ = [
     "DatabricksConnector",
     "get_healthchecker",
     "is_databricks_environment",
+    # NeMo DataDesigner (if available)
+    "DataDesignerFeature",
+    "FeatureRequirements",
+    "detect_enabled_features",
+    "get_feature_validation_report",
+    "validate_feature_requirements",
     # Utilities
     "get_logger",
     "retry_on_failure",
     # Flags
     "HAS_DATABRICKS",
+    "HAS_NEMO",
 ]

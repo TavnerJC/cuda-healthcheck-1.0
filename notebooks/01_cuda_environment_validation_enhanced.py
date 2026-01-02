@@ -17,6 +17,7 @@
 # MAGIC 8. ✅ Analyzes Databricks Runtime CUDA components
 # MAGIC 9. ✅ Provides CUDA 13.0 upgrade compatibility analysis
 # MAGIC 10. ✅ Lists detailed breaking changes with migration paths
+# MAGIC 11. ✅ **Detects NeMo DataDesigner features & validates requirements (NEW!)** 🎉
 # MAGIC
 # MAGIC ## Key Features (v0.5.0):
 # MAGIC
@@ -956,6 +957,161 @@ print("=" * 80)
 
 # COMMAND ----------
 # MAGIC %md
+# MAGIC ## 🎯 Step 11: NeMo DataDesigner Feature Detection (NEW!)
+# MAGIC
+# MAGIC Automatically detects enabled DataDesigner features and validates CUDA requirements.
+# MAGIC
+# MAGIC ### Supported Features:
+# MAGIC
+# MAGIC 1. **cloud_llm_inference** - API-based inference (no GPU/CUDA required)
+# MAGIC 2. **local_llm_inference** - Local GPU inference (requires CUDA cu121/cu124)
+# MAGIC 3. **sampler_generation** - Pure Python samplers (no GPU/CUDA required)
+# MAGIC 4. **seed_processing** - Data loading (no GPU/CUDA required)
+# MAGIC
+# MAGIC Detection methods:
+# MAGIC - Environment variables (`DATADESIGNER_INFERENCE_MODE`, etc.)
+# MAGIC - Config files (JSON/YAML)
+# MAGIC - Installed packages (`nemo.datadesigner.*`)
+# MAGIC - Notebook cell analysis
+
+# COMMAND ----------
+from cuda_healthcheck.nemo import (
+    detect_enabled_features,
+    get_feature_validation_report,
+)
+from pathlib import Path
+
+print("🔍 Detecting NeMo DataDesigner features...")
+print("=" * 80)
+
+# Detect enabled features using multiple methods
+features = detect_enabled_features(
+    check_env_vars=True,
+    check_packages=True,
+)
+
+print(f"\n📊 Feature Detection Results:")
+print(f"   Total features checked: {len(features)}")
+
+enabled_count = sum(1 for f in features.values() if f.is_enabled)
+print(f"   Enabled features: {enabled_count}")
+
+if enabled_count == 0:
+    print(f"\n   ℹ️  No DataDesigner features detected.")
+    print(f"   ℹ️  This is normal if you're not using NeMo DataDesigner.")
+    print(f"\n   To enable detection, set environment variables:")
+    print(f"      DATADESIGNER_INFERENCE_MODE=local")
+    print(f"      DATADESIGNER_ENABLE_SAMPLERS=true")
+    print(f"      DATADESIGNER_ENABLE_SEED_PROCESSING=true")
+else:
+    print(f"\n   Detected features:")
+    for feature_name, feature in features.items():
+        if feature.is_enabled:
+            print(f"      ✓ {feature_name}")
+            print(f"        Detection: {feature.detection_method}")
+            print(f"        Description: {feature.requirements.description}")
+
+# COMMAND ----------
+# MAGIC %md
+# MAGIC ### Validate Feature Requirements
+# MAGIC
+# MAGIC Check if the environment meets CUDA requirements for enabled features.
+
+# COMMAND ----------
+print("\n🔧 Validating Feature Requirements...")
+print("=" * 80)
+
+# Get current environment info
+torch_version = packages.get('torch')
+torch_cuda_branch = packages.get('torch_cuda_branch')
+cuda_available = bool(env.cuda_runtime_version and env.cuda_runtime_version != "Not available")
+
+# Get GPU memory if available
+gpu_memory_gb = None
+if gpu_result and 'gpus' in gpu_result and gpu_result['gpus']:
+    first_gpu = gpu_result['gpus'][0]
+    memory_str = first_gpu.get('memory_total', '')
+    if 'MiB' in memory_str:
+        try:
+            memory_mb = float(memory_str.replace('MiB', '').strip())
+            gpu_memory_gb = memory_mb / 1024.0
+        except:
+            pass
+
+# Validate all features
+validation_report = get_feature_validation_report(
+    features=features,
+    torch_version=torch_version,
+    torch_cuda_branch=torch_cuda_branch,
+    cuda_available=cuda_available,
+    gpu_memory_gb=gpu_memory_gb,
+)
+
+print(f"\n📋 Validation Summary:")
+print(f"   Enabled features: {validation_report['summary']['enabled_features']}")
+print(f"   🚨 Blockers: {validation_report['summary']['blockers']}")
+print(f"   ⚠️  Warnings: {validation_report['summary']['warnings']}")
+
+# Show environment info
+print(f"\n🌍 Environment Info:")
+env_info = validation_report['environment']
+print(f"   PyTorch: {env_info['torch_version'] or 'Not installed'}")
+print(f"   CUDA Branch: {env_info['torch_cuda_branch'] or 'N/A'}")
+print(f"   CUDA Available: {env_info['cuda_available']}")
+print(f"   GPU Memory: {env_info['gpu_memory_gb']:.1f} GB" if env_info['gpu_memory_gb'] else "   GPU Memory: N/A")
+
+# Display blockers
+if validation_report['blockers']:
+    print(f"\n🚨 CRITICAL BLOCKERS:")
+    print("=" * 80)
+    for blocker in validation_report['blockers']:
+        print(f"\n❌ Feature: {blocker['feature']}")
+        print(f"   Issue: {blocker['message']}")
+        print(f"\n   🔧 Fix Commands:")
+        for cmd in blocker['fix_commands']:
+            print(f"      {cmd}")
+    print("=" * 80)
+else:
+    print(f"\n✅ No blockers detected!")
+
+# Display warnings
+if validation_report['warnings']:
+    print(f"\n⚠️  WARNINGS:")
+    print("=" * 80)
+    for warning in validation_report['warnings']:
+        print(f"\n⚠️  Feature: {warning['feature']}")
+        print(f"   {warning['message']}")
+    print("=" * 80)
+
+# Show detailed feature status
+print(f"\n📊 Detailed Feature Status:")
+print("=" * 80)
+for feature_name, feature in validation_report['features'].items():
+    if feature.is_enabled:
+        status_icon = {
+            "OK": "✅",
+            "BLOCKER": "❌",
+            "WARNING": "⚠️",
+            "PENDING": "⏳",
+            "SKIPPED": "⏭️",
+        }.get(feature.validation_status, "❓")
+        
+        print(f"\n{status_icon} {feature_name}")
+        print(f"   Status: {feature.validation_status}")
+        print(f"   Message: {feature.validation_message}")
+        print(f"   Requirements:")
+        req = feature.requirements
+        print(f"      - PyTorch: {'Required' if req.requires_torch else 'Not required'}")
+        print(f"      - CUDA: {'Required' if req.requires_cuda else 'Not required'}")
+        if req.compatible_cuda_branches:
+            print(f"      - CUDA Branches: {', '.join(req.compatible_cuda_branches)}")
+        if req.min_gpu_memory_gb:
+            print(f"      - Min GPU Memory: {req.min_gpu_memory_gb:.1f} GB")
+
+print("\n" + "=" * 80)
+
+# COMMAND ----------
+# MAGIC %md
 # MAGIC ## ✅ Validation Complete!
 # MAGIC
 # MAGIC Your environment has been validated. Key findings:
@@ -964,6 +1120,7 @@ print("=" * 80)
 # MAGIC - CUDA versions validated
 # MAGIC - Library compatibility checked
 # MAGIC - **CuOPT compatibility assessed** (if installed)
+# MAGIC - **DataDesigner features validated** (NEW!)
 # MAGIC - Breaking changes identified
 # MAGIC - Migration paths provided
 # MAGIC
