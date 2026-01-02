@@ -1026,10 +1026,10 @@ torch_version = packages.get('torch')
 torch_cuda_branch = packages.get('torch_cuda_branch')
 cuda_available = bool(env.cuda_runtime_version and env.cuda_runtime_version != "Not available")
 
-# Get GPU memory if available
+# Get GPU memory if available (gpu_info is from Step 2)
 gpu_memory_gb = None
-if gpu_result and 'gpus' in gpu_result and gpu_result['gpus']:
-    first_gpu = gpu_result['gpus'][0]
+if 'gpu_info' in locals() and gpu_info and 'gpus' in gpu_info and gpu_info['gpus']:
+    first_gpu = gpu_info['gpus'][0]
     memory_str = first_gpu.get('memory_total', '')
     if 'MiB' in memory_str:
         try:
