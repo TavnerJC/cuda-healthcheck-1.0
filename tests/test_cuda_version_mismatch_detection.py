@@ -564,7 +564,7 @@ class TestIntegratedValidation:
         Expected: PyTorch branch incompatibility blocker.
         """
         packages = parse_cuda_packages(pip_freeze_valid_cu124)
-        
+
         # Test PyTorch branch compatibility separately
         torch_compat = validate_torch_branch_compatibility(
             runtime_version=14.3, torch_cuda_branch=packages["torch_cuda_branch"]
@@ -616,7 +616,7 @@ class TestIntegratedValidation:
 
         # Overall status OK
         assert validation["all_compatible"] is True
-        
+
         # Also check torch branch compatibility
         torch_compat = validate_torch_branch_compatibility(
             runtime_version=15.2, torch_cuda_branch=packages["torch_cuda_branch"]
@@ -637,7 +637,7 @@ class TestIntegratedValidation:
 
         # Overall status OK
         assert validation["all_compatible"] is True
-        
+
         # Also check torch branch compatibility
         torch_compat = validate_torch_branch_compatibility(
             runtime_version=14.3, torch_cuda_branch=packages["torch_cuda_branch"]
