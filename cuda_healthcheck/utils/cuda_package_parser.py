@@ -569,6 +569,12 @@ def validate_torch_branch_compatibility(
         result["severity"] = "WARNING"
         return result
 
+    # Handle None torch_cuda_branch (torch not installed or no CUDA support)
+    if torch_cuda_branch is None:
+        result["is_compatible"] = True  # No torch = no incompatibility
+        result["issue"] = "PyTorch not installed or has no CUDA branch detected"
+        return result
+
     runtime_info = COMPATIBILITY_MATRIX[runtime_version]
     result["runtime_cuda"] = runtime_info["cuda"]
     result["runtime_driver"] = runtime_info["driver"]
