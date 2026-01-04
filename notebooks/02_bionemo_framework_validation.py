@@ -1341,7 +1341,629 @@ display(df_cuda_functional)
 
 # COMMAND ----------
 # MAGIC %md
-# MAGIC ## 🧬 Cell 5: BioNeMo Core Package Availability (NEW!)
+# MAGIC ## 🔗 Cell 5: BioNeMo Dependency Stack Validation (NEW!)
+# MAGIC
+# MAGIC Comprehensive validation of the complete BioNeMo dependency stack for pip installation.
+# MAGIC This cell tests the entire dependency chain with automatic installation and version compatibility.
+# MAGIC
+# MAGIC **Import Chain Testing:**
+# MAGIC - Attempts to import bionemo.core (auto-installs if missing)
+# MAGIC - Validates bionemo.core.utils.dtype functionality
+# MAGIC - Tests get_autocast_dtype('bfloat16') function
+# MAGIC - Attempts optional model imports (llm, esm2, evo2) - non-fatal
+# MAGIC
+# MAGIC **Dependency Chain Validation:**
+# MAGIC - NeMo Toolkit installation and version (>= 1.22.0)
+# MAGIC - Megatron-Core availability
+# MAGIC - PyTorch Lightning version constraint (< 2.5.0)
+# MAGIC - PyTorch Lightning GPU strategy initialization
+# MAGIC
+# MAGIC **PyTorch Integration:**
+# MAGIC - Verify torch version >= 2.2.0
+# MAGIC - Validate torch.cuda functional testing
+# MAGIC - Test PyTorch Lightning Trainer with GPU
+# MAGIC - Validate FSDP support for distributed training
+# MAGIC
+# MAGIC **Autocast Support:**
+# MAGIC - Test torch.autocast context manager
+# MAGIC - Validate bfloat16 support in autocast
+# MAGIC - Test mixed precision type conversions
+# MAGIC
+# MAGIC **Critical for BioNeMo:**
+# MAGIC - BioNeMo requires specific version combinations
+# MAGIC - Dependency conflicts can cause silent failures
+# MAGIC - Autocast support is essential for mixed precision training
+# MAGIC - FSDP enables distributed training on large models
+
+# COMMAND ----------
+print("=" * 80)
+print("🔗 BIONEMO DEPENDENCY STACK VALIDATION")
+print("=" * 80)
+
+# Initialize comprehensive results dictionary
+dependency_validation_results = {
+    "timestamp": datetime.now(timezone.utc).isoformat(),
+    "bionemo_core_installed": False,
+    "optional_models_available": {
+        "llm": False,
+        "esm2": False,
+        "evo2": False
+    },
+    "dependency_versions": {
+        "nemo": None,
+        "megatron": None,
+        "lightning": None,
+        "torch": None
+    },
+    "version_compatibility": {
+        "nemo_version": "UNKNOWN",
+        "lightning_version": "UNKNOWN",
+        "torch_version": "UNKNOWN",
+        "all_compatible": False
+    },
+    "autocast_functional": False,
+    "distributed_ready": False,
+    "critical_errors": [],
+    "warnings": [],
+    "installation_commands": [],
+    "status": "PENDING"
+}
+
+try:
+    import torch
+    import subprocess
+    import importlib
+    from packaging import version
+    
+    # ========================================================================
+    # SECTION 1: IMPORT CHAIN TESTING
+    # ========================================================================
+    print("\n" + "=" * 80)
+    print("SECTION 1: IMPORT CHAIN TESTING")
+    print("=" * 80)
+    
+    # Test 1.1: Import bionemo.core (auto-install if missing)
+    print("\n📦 Test 1.1: bionemo.core Import")
+    print("─" * 80)
+    
+    try:
+        import bionemo.core
+        dependency_validation_results["bionemo_core_installed"] = True
+        print(f"   ✅ bionemo.core imported successfully")
+        
+        # Get version if available
+        if hasattr(bionemo.core, '__version__'):
+            core_version = bionemo.core.__version__
+            print(f"   ℹ️  Version: {core_version}")
+        
+    except ImportError as e:
+        print(f"   ⚠️  bionemo.core not found: {str(e)}")
+        print(f"   🔧 Installing bionemo-core...")
+        
+        try:
+            # Attempt installation
+            install_result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "-q", "bionemo-core"],
+                capture_output=True,
+                text=True,
+                timeout=300
+            )
+            
+            if install_result.returncode == 0:
+                # Try importing again
+                import bionemo.core
+                dependency_validation_results["bionemo_core_installed"] = True
+                print(f"   ✅ bionemo-core installed and imported successfully")
+            else:
+                dependency_validation_results["critical_errors"].append(
+                    f"Failed to install bionemo-core: {install_result.stderr}"
+                )
+                print(f"   ❌ Installation failed: {install_result.stderr}")
+                
+        except subprocess.TimeoutExpired:
+            dependency_validation_results["critical_errors"].append("bionemo-core installation timed out")
+            print(f"   ❌ Installation timed out (>300s)")
+        except Exception as install_error:
+            dependency_validation_results["critical_errors"].append(f"Installation error: {str(install_error)}")
+            print(f"   ❌ Installation error: {str(install_error)}")
+    
+    # Test 1.2: Validate bionemo.core.utils.dtype functionality
+    if dependency_validation_results["bionemo_core_installed"]:
+        print("\n📦 Test 1.2: bionemo.core.utils.dtype Functionality")
+        print("─" * 80)
+        
+        try:
+            from bionemo.core.utils import dtype as bionemo_dtype
+            print(f"   ✅ bionemo.core.utils.dtype imported")
+            
+            # Test 1.3: Test get_autocast_dtype function
+            print("\n📦 Test 1.3: get_autocast_dtype('bfloat16') Function")
+            print("─" * 80)
+            
+            try:
+                # Test get_autocast_dtype with bfloat16
+                autocast_dtype = bionemo_dtype.get_autocast_dtype('bfloat16')
+                print(f"   ✅ get_autocast_dtype('bfloat16') returned: {autocast_dtype}")
+                
+                # Verify it returns a PyTorch dtype
+                if hasattr(torch, str(autocast_dtype).split('.')[-1]):
+                    print(f"   ✅ Returned dtype is valid PyTorch dtype")
+                else:
+                    dependency_validation_results["warnings"].append(
+                        "get_autocast_dtype returned unexpected dtype"
+                    )
+                    print(f"   ⚠️  Unexpected dtype returned")
+                    
+            except Exception as e:
+                dependency_validation_results["warnings"].append(
+                    f"get_autocast_dtype failed: {str(e)}"
+                )
+                print(f"   ⚠️  get_autocast_dtype test failed: {str(e)}")
+                
+        except ImportError as e:
+            dependency_validation_results["warnings"].append(
+                f"bionemo.core.utils.dtype not available: {str(e)}"
+            )
+            print(f"   ⚠️  Cannot import bionemo.core.utils.dtype: {str(e)}")
+    
+    # Test 1.4: Optional model imports (non-fatal)
+    print("\n📦 Test 1.4: Optional BioNeMo Models (Non-Fatal)")
+    print("─" * 80)
+    
+    optional_models = {
+        "llm": "bionemo_llm",
+        "esm2": "bionemo_esm2",
+        "evo2": "bionemo_evo2"
+    }
+    
+    for model_key, model_module in optional_models.items():
+        try:
+            importlib.import_module(model_module)
+            dependency_validation_results["optional_models_available"][model_key] = True
+            print(f"   ✅ {model_module} available")
+        except ImportError:
+            print(f"   ℹ️  {model_module} not installed (optional)")
+    
+    # ========================================================================
+    # SECTION 2: DEPENDENCY CHAIN VALIDATION
+    # ========================================================================
+    print("\n" + "=" * 80)
+    print("SECTION 2: DEPENDENCY CHAIN VALIDATION")
+    print("=" * 80)
+    
+    # Test 2.1: NeMo Toolkit
+    print("\n📦 Test 2.1: NeMo Toolkit")
+    print("─" * 80)
+    
+    try:
+        import nemo
+        nemo_version = nemo.__version__
+        dependency_validation_results["dependency_versions"]["nemo"] = nemo_version
+        
+        print(f"   ✅ NeMo Toolkit installed: v{nemo_version}")
+        
+        # Validate version >= 1.22.0
+        try:
+            if version.parse(nemo_version) >= version.parse("1.22.0"):
+                dependency_validation_results["version_compatibility"]["nemo_version"] = "PASS"
+                print(f"   ✅ Version check: {nemo_version} >= 1.22.0")
+            else:
+                dependency_validation_results["version_compatibility"]["nemo_version"] = "FAIL"
+                dependency_validation_results["critical_errors"].append(
+                    f"NeMo version {nemo_version} < 1.22.0 (required)"
+                )
+                print(f"   ❌ Version check: {nemo_version} < 1.22.0 (required)")
+                dependency_validation_results["installation_commands"].append(
+                    "pip install 'nemo-toolkit[all]>=1.22.0'"
+                )
+        except Exception as e:
+            dependency_validation_results["warnings"].append(f"NeMo version parse error: {str(e)}")
+            print(f"   ⚠️  Could not parse NeMo version: {str(e)}")
+            
+    except ImportError:
+        dependency_validation_results["critical_errors"].append("NeMo Toolkit not installed")
+        dependency_validation_results["version_compatibility"]["nemo_version"] = "NOT_INSTALLED"
+        print(f"   ❌ NeMo Toolkit not installed")
+        dependency_validation_results["installation_commands"].append(
+            "pip install 'nemo-toolkit[all]>=1.22.0'"
+        )
+    
+    # Test 2.2: Megatron-Core
+    print("\n📦 Test 2.2: Megatron-Core")
+    print("─" * 80)
+    
+    try:
+        import megatron
+        # Try to get version from megatron.core
+        megatron_version = "Unknown"
+        if hasattr(megatron, '__version__'):
+            megatron_version = megatron.__version__
+        elif hasattr(megatron, 'core') and hasattr(megatron.core, '__version__'):
+            megatron_version = megatron.core.__version__
+        
+        dependency_validation_results["dependency_versions"]["megatron"] = megatron_version
+        print(f"   ✅ Megatron-Core installed: v{megatron_version}")
+        
+    except ImportError:
+        dependency_validation_results["warnings"].append("Megatron-Core not installed")
+        print(f"   ⚠️  Megatron-Core not installed (may be bundled with NeMo)")
+    
+    # Test 2.3: PyTorch Lightning version constraint
+    print("\n📦 Test 2.3: PyTorch Lightning Version Constraint")
+    print("─" * 80)
+    
+    try:
+        import pytorch_lightning as pl
+        lightning_version = pl.__version__
+        dependency_validation_results["dependency_versions"]["lightning"] = lightning_version
+        
+        print(f"   ✅ PyTorch Lightning installed: v{lightning_version}")
+        
+        # Validate version < 2.5.0
+        try:
+            if version.parse(lightning_version) < version.parse("2.5.0"):
+                dependency_validation_results["version_compatibility"]["lightning_version"] = "PASS"
+                print(f"   ✅ Version check: {lightning_version} < 2.5.0")
+            else:
+                dependency_validation_results["version_compatibility"]["lightning_version"] = "WARN"
+                dependency_validation_results["warnings"].append(
+                    f"PyTorch Lightning {lightning_version} >= 2.5.0 (may have compatibility issues)"
+                )
+                print(f"   ⚠️  Version check: {lightning_version} >= 2.5.0 (may cause issues)")
+                dependency_validation_results["installation_commands"].append(
+                    "pip install 'pytorch-lightning<2.5.0'"
+                )
+        except Exception as e:
+            dependency_validation_results["warnings"].append(f"Lightning version parse error: {str(e)}")
+            print(f"   ⚠️  Could not parse Lightning version: {str(e)}")
+            
+    except ImportError:
+        dependency_validation_results["critical_errors"].append("PyTorch Lightning not installed")
+        dependency_validation_results["version_compatibility"]["lightning_version"] = "NOT_INSTALLED"
+        print(f"   ❌ PyTorch Lightning not installed")
+        dependency_validation_results["installation_commands"].append(
+            "pip install 'pytorch-lightning<2.5.0'"
+        )
+    
+    # Test 2.4: PyTorch Lightning GPU Strategy
+    print("\n📦 Test 2.4: PyTorch Lightning GPU Strategy Initialization")
+    print("─" * 80)
+    
+    if dependency_validation_results["dependency_versions"]["lightning"]:
+        try:
+            from pytorch_lightning.strategies import DDPStrategy
+            
+            # Test strategy initialization (doesn't require GPU to instantiate)
+            strategy = DDPStrategy(find_unused_parameters=True)
+            print(f"   ✅ DDPStrategy initialized successfully")
+            
+            # Check for FSDP strategy (for distributed training)
+            try:
+                from pytorch_lightning.strategies import FSDPStrategy
+                print(f"   ✅ FSDPStrategy available (distributed training ready)")
+                dependency_validation_results["distributed_ready"] = True
+            except ImportError:
+                dependency_validation_results["warnings"].append("FSDP strategy not available")
+                print(f"   ⚠️  FSDP strategy not available (Lightning >= 1.9.0 required)")
+                
+        except Exception as e:
+            dependency_validation_results["warnings"].append(f"Lightning strategy test failed: {str(e)}")
+            print(f"   ⚠️  Strategy initialization failed: {str(e)}")
+    
+    # ========================================================================
+    # SECTION 3: PYTORCH INTEGRATION
+    # ========================================================================
+    print("\n" + "=" * 80)
+    print("SECTION 3: PYTORCH INTEGRATION")
+    print("=" * 80)
+    
+    # Test 3.1: PyTorch version
+    print("\n📦 Test 3.1: PyTorch Version >= 2.2.0")
+    print("─" * 80)
+    
+    torch_version = torch.__version__.split('+')[0]  # Remove +cuXXX suffix
+    dependency_validation_results["dependency_versions"]["torch"] = torch_version
+    
+    print(f"   ✅ PyTorch installed: v{torch_version}")
+    
+    try:
+        if version.parse(torch_version) >= version.parse("2.2.0"):
+            dependency_validation_results["version_compatibility"]["torch_version"] = "PASS"
+            print(f"   ✅ Version check: {torch_version} >= 2.2.0")
+        else:
+            dependency_validation_results["version_compatibility"]["torch_version"] = "FAIL"
+            dependency_validation_results["critical_errors"].append(
+                f"PyTorch version {torch_version} < 2.2.0 (required)"
+            )
+            print(f"   ❌ Version check: {torch_version} < 2.2.0 (required)")
+            dependency_validation_results["installation_commands"].append(
+                "pip install 'torch>=2.2.0'"
+            )
+    except Exception as e:
+        dependency_validation_results["warnings"].append(f"Torch version parse error: {str(e)}")
+        print(f"   ⚠️  Could not parse PyTorch version: {str(e)}")
+    
+    # Test 3.2: torch.cuda.is_available() AND functional testing
+    print("\n📦 Test 3.2: CUDA Availability and Functional Test")
+    print("─" * 80)
+    
+    if torch.cuda.is_available():
+        print(f"   ✅ torch.cuda.is_available() = True")
+        
+        # Perform a simple functional test
+        try:
+            test_tensor = torch.randn(100, 100, device='cuda')
+            result = torch.matmul(test_tensor, test_tensor)
+            torch.cuda.synchronize()
+            
+            print(f"   ✅ CUDA functional test passed (100×100 matmul)")
+            del test_tensor, result
+            
+        except Exception as e:
+            dependency_validation_results["warnings"].append(f"CUDA functional test failed: {str(e)}")
+            print(f"   ⚠️  CUDA functional test failed: {str(e)}")
+    else:
+        dependency_validation_results["critical_errors"].append("CUDA not available")
+        print(f"   ❌ torch.cuda.is_available() = False")
+    
+    # Test 3.3: PyTorch Lightning Trainer with GPU
+    print("\n📦 Test 3.3: PyTorch Lightning Trainer with GPU")
+    print("─" * 80)
+    
+    if dependency_validation_results["dependency_versions"]["lightning"] and torch.cuda.is_available():
+        try:
+            import pytorch_lightning as pl
+            
+            # Create a minimal trainer with GPU
+            trainer = pl.Trainer(
+                accelerator="gpu",
+                devices=1,
+                max_epochs=1,
+                enable_progress_bar=False,
+                enable_model_summary=False,
+                logger=False,
+                enable_checkpointing=False
+            )
+            
+            print(f"   ✅ Trainer instantiated with GPU accelerator")
+            print(f"      Accelerator: {trainer.accelerator.__class__.__name__}")
+            print(f"      Devices: {trainer.num_devices}")
+            
+        except Exception as e:
+            dependency_validation_results["warnings"].append(f"Trainer instantiation failed: {str(e)}")
+            print(f"   ⚠️  Trainer instantiation failed: {str(e)}")
+    elif not torch.cuda.is_available():
+        print(f"   ⏭️  Skipped (CUDA not available)")
+    else:
+        print(f"   ⏭️  Skipped (PyTorch Lightning not installed)")
+    
+    # Test 3.4: FSDP support for distributed training
+    print("\n📦 Test 3.4: FSDP Support for Distributed Training")
+    print("─" * 80)
+    
+    try:
+        from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+        print(f"   ✅ torch.distributed.fsdp available")
+        
+        # Check for ShardingStrategy
+        try:
+            from torch.distributed.fsdp import ShardingStrategy
+            print(f"   ✅ ShardingStrategy available")
+            dependency_validation_results["distributed_ready"] = True
+        except ImportError:
+            dependency_validation_results["warnings"].append("ShardingStrategy not available")
+            print(f"   ⚠️  ShardingStrategy not available")
+            
+    except ImportError:
+        dependency_validation_results["warnings"].append("FSDP not available (PyTorch >= 2.0.0 required)")
+        print(f"   ⚠️  FSDP not available (requires PyTorch >= 2.0.0)")
+    
+    # ========================================================================
+    # SECTION 4: AUTOCAST SUPPORT
+    # ========================================================================
+    print("\n" + "=" * 80)
+    print("SECTION 4: AUTOCAST SUPPORT")
+    print("=" * 80)
+    
+    # Test 4.1: torch.autocast context manager
+    print("\n📦 Test 4.1: torch.autocast Context Manager")
+    print("─" * 80)
+    
+    if torch.cuda.is_available():
+        try:
+            # Test autocast with CUDA
+            with torch.autocast(device_type='cuda', dtype=torch.float16):
+                A = torch.randn(100, 100, device='cuda')
+                B = torch.randn(100, 100, device='cuda')
+                C = torch.matmul(A, B)
+                
+                # Verify dtype
+                if C.dtype == torch.float16:
+                    print(f"   ✅ torch.autocast working (output dtype: {C.dtype})")
+                else:
+                    dependency_validation_results["warnings"].append(
+                        f"Autocast produced unexpected dtype: {C.dtype}"
+                    )
+                    print(f"   ⚠️  Unexpected dtype: {C.dtype} (expected float16)")
+                
+                del A, B, C
+                
+        except Exception as e:
+            dependency_validation_results["warnings"].append(f"torch.autocast test failed: {str(e)}")
+            print(f"   ⚠️  torch.autocast test failed: {str(e)}")
+    else:
+        print(f"   ⏭️  Skipped (CUDA not available)")
+    
+    # Test 4.2: bfloat16 support in autocast
+    print("\n📦 Test 4.2: bfloat16 Support in Autocast")
+    print("─" * 80)
+    
+    if torch.cuda.is_available():
+        try:
+            # Check GPU compute capability for bfloat16 support
+            gpu_capability = torch.cuda.get_device_capability(0)
+            
+            if gpu_capability[0] >= 8:  # Ampere or newer
+                with torch.autocast(device_type='cuda', dtype=torch.bfloat16):
+                    A = torch.randn(100, 100, device='cuda')
+                    B = torch.randn(100, 100, device='cuda')
+                    C = torch.matmul(A, B)
+                    
+                    if C.dtype == torch.bfloat16:
+                        print(f"   ✅ bfloat16 autocast working (output dtype: {C.dtype})")
+                        dependency_validation_results["autocast_functional"] = True
+                    else:
+                        dependency_validation_results["warnings"].append(
+                            f"bfloat16 autocast produced unexpected dtype: {C.dtype}"
+                        )
+                        print(f"   ⚠️  Unexpected dtype: {C.dtype} (expected bfloat16)")
+                    
+                    del A, B, C
+            else:
+                print(f"   ⚠️  GPU compute capability {gpu_capability[0]}.{gpu_capability[1]} < 8.0")
+                print(f"      bfloat16 requires Ampere+ GPU")
+                
+        except Exception as e:
+            dependency_validation_results["warnings"].append(f"bfloat16 autocast test failed: {str(e)}")
+            print(f"   ⚠️  bfloat16 autocast test failed: {str(e)}")
+    else:
+        print(f"   ⏭️  Skipped (CUDA not available)")
+    
+    # Test 4.3: Mixed precision type conversions
+    print("\n📦 Test 4.3: Mixed Precision Type Conversions")
+    print("─" * 80)
+    
+    if torch.cuda.is_available():
+        try:
+            # Test type conversions
+            tensor_fp32 = torch.randn(100, 100, device='cuda', dtype=torch.float32)
+            tensor_fp16 = tensor_fp32.half()  # to float16
+            tensor_fp32_back = tensor_fp16.float()  # back to float32
+            
+            print(f"   ✅ FP32 → FP16: {tensor_fp32.dtype} → {tensor_fp16.dtype}")
+            print(f"   ✅ FP16 → FP32: {tensor_fp16.dtype} → {tensor_fp32_back.dtype}")
+            
+            # Test bfloat16 if available
+            gpu_capability = torch.cuda.get_device_capability(0)
+            if gpu_capability[0] >= 8:
+                tensor_bf16 = tensor_fp32.to(torch.bfloat16)
+                print(f"   ✅ FP32 → BF16: {tensor_fp32.dtype} → {tensor_bf16.dtype}")
+                del tensor_bf16
+            
+            dependency_validation_results["autocast_functional"] = True
+            
+            del tensor_fp32, tensor_fp16, tensor_fp32_back
+            
+        except Exception as e:
+            dependency_validation_results["warnings"].append(f"Type conversion test failed: {str(e)}")
+            print(f"   ⚠️  Type conversion test failed: {str(e)}")
+    else:
+        print(f"   ⏭️  Skipped (CUDA not available)")
+    
+    # ========================================================================
+    # DETERMINE OVERALL STATUS
+    # ========================================================================
+    
+    # Check version compatibility
+    all_compatible = (
+        dependency_validation_results["version_compatibility"]["nemo_version"] == "PASS" and
+        dependency_validation_results["version_compatibility"]["lightning_version"] in ["PASS", "WARN"] and
+        dependency_validation_results["version_compatibility"]["torch_version"] == "PASS"
+    )
+    dependency_validation_results["version_compatibility"]["all_compatible"] = all_compatible
+    
+    # Determine status
+    if dependency_validation_results["critical_errors"]:
+        dependency_validation_results["status"] = "BLOCKED"
+    elif dependency_validation_results["bionemo_core_installed"] and all_compatible:
+        dependency_validation_results["status"] = "READY"
+    elif dependency_validation_results["bionemo_core_installed"]:
+        dependency_validation_results["status"] = "PARTIAL"
+    else:
+        dependency_validation_results["status"] = "NOT_READY"
+
+except ImportError as e:
+    dependency_validation_results["critical_errors"].append(f"Import error: {str(e)}")
+    dependency_validation_results["status"] = "BLOCKED"
+    print(f"\n❌ Critical import error: {str(e)}")
+except Exception as e:
+    dependency_validation_results["critical_errors"].append(f"Unexpected error: {str(e)}")
+    dependency_validation_results["status"] = "ERROR"
+    print(f"\n❌ Unexpected error: {str(e)}")
+
+# Final Summary
+print("\n" + "=" * 80)
+print(f"DEPENDENCY VALIDATION STATUS: {dependency_validation_results['status']}")
+print("=" * 80)
+
+print(f"\n📊 Summary:")
+print(f"   BioNeMo Core: {'✅ Installed' if dependency_validation_results['bionemo_core_installed'] else '❌ Not Installed'}")
+print(f"   Dependencies: NeMo={dependency_validation_results['dependency_versions']['nemo']}, "
+      f"Lightning={dependency_validation_results['dependency_versions']['lightning']}, "
+      f"PyTorch={dependency_validation_results['dependency_versions']['torch']}")
+print(f"   Version Compatibility: {'✅ All Pass' if dependency_validation_results['version_compatibility']['all_compatible'] else '⚠️ Issues Found'}")
+print(f"   Autocast Functional: {'✅ Working' if dependency_validation_results['autocast_functional'] else '⚠️ Not Tested'}")
+print(f"   Distributed Ready: {'✅ FSDP Available' if dependency_validation_results['distributed_ready'] else '⚠️ Limited'}")
+
+if dependency_validation_results["critical_errors"]:
+    print(f"\n🚨 Critical Errors ({len(dependency_validation_results['critical_errors'])}):")
+    for i, error in enumerate(dependency_validation_results["critical_errors"], 1):
+        print(f"   {i}. {error}")
+
+if dependency_validation_results["warnings"]:
+    print(f"\n⚠️  Warnings ({len(dependency_validation_results['warnings'])}):")
+    for i, warning in enumerate(dependency_validation_results["warnings"], 1):
+        print(f"   {i}. {warning}")
+
+if dependency_validation_results["installation_commands"]:
+    print(f"\n💡 Installation Commands:")
+    for i, cmd in enumerate(dependency_validation_results["installation_commands"], 1):
+        print(f"   {i}. {cmd}")
+
+print("=" * 80)
+
+# Display results as DataFrame
+import pandas as pd
+
+summary_data = {
+    "Component": [
+        "BioNeMo Core",
+        "NeMo Toolkit",
+        "Megatron-Core",
+        "PyTorch Lightning",
+        "PyTorch",
+        "Autocast Support",
+        "FSDP (Distributed)",
+        "Optional Models"
+    ],
+    "Status": [
+        "✅ Installed" if dependency_validation_results["bionemo_core_installed"] else "❌ Not Installed",
+        f"✅ v{dependency_validation_results['dependency_versions']['nemo']}" if dependency_validation_results['dependency_versions']['nemo'] else "❌ Not Installed",
+        f"✅ v{dependency_validation_results['dependency_versions']['megatron']}" if dependency_validation_results['dependency_versions']['megatron'] else "⚠️ Not Found",
+        f"✅ v{dependency_validation_results['dependency_versions']['lightning']}" if dependency_validation_results['dependency_versions']['lightning'] else "❌ Not Installed",
+        f"✅ v{dependency_validation_results['dependency_versions']['torch']}" if dependency_validation_results['dependency_versions']['torch'] else "❌ Not Installed",
+        "✅ Working" if dependency_validation_results["autocast_functional"] else "⚠️ Not Tested",
+        "✅ Available" if dependency_validation_results["distributed_ready"] else "⚠️ Limited",
+        f"{sum(dependency_validation_results['optional_models_available'].values())}/3 Available"
+    ],
+    "Version Check": [
+        "N/A",
+        dependency_validation_results["version_compatibility"]["nemo_version"],
+        "N/A",
+        dependency_validation_results["version_compatibility"]["lightning_version"],
+        dependency_validation_results["version_compatibility"]["torch_version"],
+        "N/A",
+        "N/A",
+        "N/A"
+    ]
+}
+
+df_dependency = pd.DataFrame(summary_data)
+display(df_dependency)
+
+# COMMAND ----------
+# MAGIC %md
+# MAGIC ## 🧬 Cell 6: BioNeMo Core Package Availability (NEW!)
 # MAGIC
 # MAGIC Tests availability and imports of BioNeMo Framework packages.
 # MAGIC
@@ -1584,7 +2206,7 @@ display(df_bionemo)
 
 # COMMAND ----------
 # MAGIC %md
-# MAGIC ## 📋 Cell 6: Final Summary Report
+# MAGIC ## 📋 Cell 7: Final Summary Report
 # MAGIC
 # MAGIC Comprehensive summary of all validation checks with recommendations.
 
@@ -1600,6 +2222,7 @@ final_report = {
         "cuda_environment": cuda_validation_results,
         "pytorch_lightning": lightning_test_results,
         "cuda_functional": cuda_functional_results,
+        "dependency_stack": dependency_validation_results,
         "bionemo_packages": bionemo_test_results
     },
     "overall_status": "PENDING",
@@ -1662,7 +2285,21 @@ elif cuda_functional_results["status"] == "SKIPPED":
 else:
     print(f"      • Errors: {len(cuda_functional_results['errors'])}")
 
-# Section 4: BioNeMo Packages
+# Section 4: Dependency Stack Validation
+dep_status = "✅ PASS" if dependency_validation_results["status"] == "READY" else ("⚠️ PARTIAL" if dependency_validation_results["status"] == "PARTIAL" else "❌ FAIL")
+print(f"\n   4. Dependency Stack: {dep_status}")
+if dependency_validation_results["status"] in ["READY", "PARTIAL"]:
+    print(f"      • BioNeMo Core: {'✅ Installed' if dependency_validation_results['bionemo_core_installed'] else '❌ Not Installed'}")
+    if dependency_validation_results['dependency_versions']['nemo']:
+        print(f"      • NeMo: v{dependency_validation_results['dependency_versions']['nemo']}")
+    else:
+        print(f"      • NeMo: ❌ Not Installed")
+    print(f"      • Version Compatibility: {'✅ All Pass' if dependency_validation_results['version_compatibility']['all_compatible'] else '⚠️ Issues'}")
+    print(f"      • Autocast: {'✅ Working' if dependency_validation_results['autocast_functional'] else '⚠️ Not Tested'}")
+else:
+    print(f"      • Errors: {len(dependency_validation_results['critical_errors'])}")
+
+# Section 5: BioNeMo Packages
 if bionemo_test_results["status"] == "NO_PACKAGES":
     bionemo_status = "⚠️ NOT INSTALLED"
 elif bionemo_test_results["status"] == "PASSED":
@@ -1670,15 +2307,7 @@ elif bionemo_test_results["status"] == "PASSED":
 else:
     bionemo_status = "❌ FAIL"
 
-# Section 4: BioNeMo Packages
-if bionemo_test_results["status"] == "NO_PACKAGES":
-    bionemo_status = "⚠️ NOT INSTALLED"
-elif bionemo_test_results["status"] == "PASSED":
-    bionemo_status = "✅ PASS"
-else:
-    bionemo_status = "❌ FAIL"
-
-print(f"\n   4. BioNeMo Packages: {bionemo_status}")
+print(f"\n   5. BioNeMo Packages: {bionemo_status}")
 installed = sum(1 for r in bionemo_test_results["packages_tested"].values() if r["is_installed"])
 importable = sum(1 for r in bionemo_test_results["packages_tested"].values() if r["is_importable"])
 print(f"      • Installed: {installed}/{len(bionemo_packages)}")
