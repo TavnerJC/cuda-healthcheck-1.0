@@ -273,7 +273,475 @@ display(df_summary)
 
 # COMMAND ----------
 # MAGIC %md
-# MAGIC ## ⚡ Cell 3: PyTorch Lightning GPU Test (NEW!)
+# MAGIC ## 🐍 Cell 2.1: Detect CUDA Version for PyTorch Installation (NEW!)
+# MAGIC
+# MAGIC Automatically detects the CUDA version from nvidia-smi and determines
+# MAGIC the appropriate PyTorch installation command with matching CUDA support.
+# MAGIC
+# MAGIC **Maps CUDA versions to PyTorch wheel URLs:**
+# MAGIC - CUDA 11.8 → cu118
+# MAGIC - CUDA 12.1 → cu121
+# MAGIC - CUDA 12.4 → cu124
+# MAGIC - CUDA 12.6+ → cu126
+# MAGIC
+# MAGIC Reference: https://pytorch.org/get-started/locally/
+
+# COMMAND ----------
+print("=" * 80)
+print("🐍 DETECTING CUDA VERSION FOR PYTORCH INSTALLATION")
+print("=" * 80)
+
+import subprocess
+import re
+
+def get_cuda_version_for_pytorch():
+    """
+    Detect CUDA version and return appropriate PyTorch installation command.
+    Returns tuple of (cuda_version, index_url, pytorch_install_command)
+    """
+    try:
+        # Get CUDA version from nvidia-smi
+        result = subprocess.run(['nvidia-smi'], capture_output=True, text=True, check=False)
+        output = result.stdout
+
+        # Extract CUDA version (e.g., "CUDA Version: 12.6")
+        cuda_match = re.search(r'CUDA Version: (\d+)\.(\d+)', output)
+
+        if cuda_match:
+            major = int(cuda_match.group(1))
+            minor = int(cuda_match.group(2))
+            cuda_version = f"{major}.{minor}"
+
+            # Map CUDA version to PyTorch index URL
+            # Based on: https://pytorch.org/get-started/locally/
+            cuda_mapping = {
+                '11.8': ('cu118', 'https://download.pytorch.org/whl/cu118'),
+                '12.1': ('cu121', 'https://download.pytorch.org/whl/cu121'),
+                '12.4': ('cu124', 'https://download.pytorch.org/whl/cu124'),
+                '12.6': ('cu126', 'https://download.pytorch.org/whl/cu126'),
+            }
+
+            # Find closest matching CUDA version
+            if cuda_version in cuda_mapping:
+                cu_version, index_url = cuda_mapping[cuda_version]
+            elif major == 12 and minor >= 6:
+                # For CUDA 12.6+, use cu126 stable
+                cu_version, index_url = ('cu126', 'https://download.pytorch.org/whl/cu126')
+            elif major == 12:
+                cu_version, index_url = ('cu121', 'https://download.pytorch.org/whl/cu121')
+            elif major == 11:
+                cu_version, index_url = ('cu118', 'https://download.pytorch.org/whl/cu118')
+            else:
+                print(f"   ⚠️  Unsupported CUDA version: {cuda_version}")
+                return None, None, None
+
+            # Construct installation command
+            install_cmd = f"pip install torch torchvision torchaudio --index-url {index_url}"
+
+            return cuda_version, index_url, install_cmd
+
+        print("   ⚠️  Could not extract CUDA version from nvidia-smi")
+        return None, None, None
+
+    except Exception as e:
+        print(f"   ❌ Error detecting CUDA version: {e}")
+        return None, None, None
+
+# Execute detection
+cuda_ver, pytorch_index, install_command = get_cuda_version_for_pytorch()
+
+if cuda_ver and install_command:
+    print(f"\n✅ Detected CUDA Version: {cuda_ver}")
+    print(f"   PyTorch Index URL: {pytorch_index}")
+    print("=" * 80)
+    print(f"\n📋 Recommended PyTorch Installation Command:")
+    print(f"\n   {install_command}")
+    print("\n" + "=" * 80)
+else:
+    print("❌ Could not detect CUDA version automatically")
+    print("   Please install PyTorch manually from: https://pytorch.org/get-started/locally/")
+    print("=" * 80)
+
+# COMMAND ----------
+# MAGIC %md
+# MAGIC ## 🔍 Cell 2.2: Check Existing PyTorch Installation (NEW!)
+# MAGIC
+# MAGIC Verifies if PyTorch is already installed and whether it has CUDA support.
+# MAGIC Prevents unnecessary reinstallation if a working version exists.
+# MAGIC
+# MAGIC **Checks:**
+# MAGIC - PyTorch installation status
+# MAGIC - CUDA availability in PyTorch
+# MAGIC - CUDA version compiled into PyTorch
+# MAGIC - Number of GPUs detected by PyTorch
+
+# COMMAND ----------
+print("=" * 80)
+print("🔍 CHECKING EXISTING PYTORCH INSTALLATION")
+print("=" * 80)
+
+def check_pytorch_installation():
+    """
+    Check if PyTorch is installed and has CUDA support.
+    Returns (is_installed, has_cuda, version, cuda_version)
+    """
+    try:
+        import torch
+        version = torch.__version__
+        has_cuda = torch.cuda.is_available()
+        cuda_version = torch.version.cuda if has_cuda else "N/A"
+        gpu_count = torch.cuda.device_count() if has_cuda else 0
+
+        print(f"\n✅ PyTorch is installed")
+        print(f"   Version: {version}")
+        print(f"   CUDA Support: {'✅ YES' if has_cuda else '❌ NO'}")
+        
+        if has_cuda:
+            print(f"   CUDA Version (built with): {cuda_version}")
+            print(f"   GPUs Available: {gpu_count}")
+            if gpu_count > 0:
+                print(f"   GPU 0: {torch.cuda.get_device_name(0)}")
+        
+        print("=" * 80)
+
+        return True, has_cuda, version, cuda_version
+
+    except ImportError:
+        print(f"\n⚠️  PyTorch is NOT installed")
+        print("=" * 80)
+        return False, False, None, None
+
+# Check current installation
+is_installed, has_cuda, version, cuda_version = check_pytorch_installation()
+
+# Determine if installation is needed
+needs_pytorch_install = False
+
+if is_installed and has_cuda:
+    print("\n✅ PyTorch with CUDA support is already installed and working!")
+    print("   No installation needed - you can skip the next cell.")
+elif is_installed and not has_cuda:
+    print("\n⚠️  WARNING: PyTorch is installed but WITHOUT CUDA support!")
+    print("   You need to reinstall PyTorch with the CUDA-enabled version.")
+    print("   Run the next cell to reinstall with CUDA support.")
+    needs_pytorch_install = True
+else:
+    print("\n→ PyTorch needs to be installed.")
+    print("   Run the next cell to install PyTorch with CUDA support.")
+    needs_pytorch_install = True
+
+# COMMAND ----------
+# MAGIC %md
+# MAGIC ## 📥 Cell 2.3: Install PyTorch with CUDA Support (NEW!)
+# MAGIC
+# MAGIC Installs PyTorch with CUDA support using the detected CUDA version.
+# MAGIC Only runs if PyTorch is not already properly installed.
+# MAGIC
+# MAGIC **Installation Notes:**
+# MAGIC - Uses `%pip install` for Databricks compatibility
+# MAGIC - Matches CUDA version from nvidia-smi
+# MAGIC - Installs torch, torchvision, and torchaudio
+# MAGIC - Takes 2-5 minutes depending on cluster internet speed
+
+# COMMAND ----------
+print("=" * 80)
+print("📥 PYTORCH INSTALLATION WITH CUDA SUPPORT")
+print("=" * 80)
+
+# Check if installation is needed
+needs_installation = False
+
+try:
+    import torch
+    if not torch.cuda.is_available():
+        print("\n⚠️  PyTorch exists but CUDA not available - reinstalling...")
+        needs_installation = True
+    else:
+        print("\n✅ PyTorch with CUDA already installed - skipping installation")
+except ImportError:
+    print("\n📦 PyTorch not found - proceeding with installation...")
+    needs_installation = True
+
+if needs_installation and install_command:
+    print(f"\n🚀 Installing PyTorch with CUDA support...")
+    print(f"   Command: {install_command}")
+    print(f"\n⏳ This may take 2-5 minutes - please wait...")
+    print("=" * 80)
+
+    # Use %pip for Databricks compatibility
+    try:
+        # Execute installation using %pip magic command
+        get_ipython().run_line_magic('pip', f'install torch torchvision torchaudio --index-url {pytorch_index}')
+        
+        print("\n" + "=" * 80)
+        print("✅ PyTorch installation completed successfully!")
+        print("=" * 80)
+        
+        # Important: Restart Python to use the newly installed package
+        print("\n⚠️  IMPORTANT: Restarting Python kernel to load new PyTorch installation...")
+        print("   This is required for Databricks to recognize the new package.")
+        
+        # Use dbutils to restart Python (Databricks-specific)
+        try:
+            dbutils.library.restartPython()
+        except:
+            print("   Note: Could not auto-restart. Please manually restart the notebook if needed.")
+        
+    except Exception as e:
+        print(f"\n❌ Installation failed with error:")
+        print(f"   {str(e)}")
+        print("\n💡 Manual installation:")
+        print(f"   Run this command in a notebook cell:")
+        print(f"   %pip install torch torchvision torchaudio --index-url {pytorch_index}")
+        print("=" * 80)
+        
+elif needs_installation and not install_command:
+    print("\n⚠️  Could not determine correct PyTorch installation command")
+    print("\n💡 Please install PyTorch manually:")
+    print("   1. Visit: https://pytorch.org/get-started/locally/")
+    print("   2. Select your CUDA version")
+    print("   3. Copy and run the pip install command")
+    print("=" * 80)
+else:
+    print("\n✅ Installation skipped - PyTorch with CUDA is already properly configured")
+    print("=" * 80)
+
+# COMMAND ----------
+# MAGIC %md
+# MAGIC ## ✅ Cell 2.4: Verify PyTorch Installation for BioNeMo (NEW!)
+# MAGIC
+# MAGIC Comprehensive verification that PyTorch is correctly installed with
+# MAGIC CUDA support and ready for BioNeMo Framework workloads.
+# MAGIC
+# MAGIC **Verification Tests:**
+# MAGIC - PyTorch and CUDA versions
+# MAGIC - GPU device detection and properties
+# MAGIC - GPU tensor operations (creation, matmul)
+# MAGIC - Mixed precision (AMP) support
+# MAGIC - bfloat16 support (Ampere+ GPUs)
+# MAGIC - FP8 support detection (Hopper GPUs)
+# MAGIC - cuDNN backend availability
+
+# COMMAND ----------
+print("=" * 80)
+print("✅ PYTORCH + CUDA VERIFICATION FOR BIONEMO FRAMEWORK")
+print("=" * 80)
+
+def verify_pytorch_cuda_for_bionemo():
+    """
+    Comprehensive verification of PyTorch CUDA installation for BioNeMo compatibility.
+    Returns True if all checks pass, False otherwise.
+    """
+    try:
+        import torch
+        import numpy as np
+
+        print(f"\n1️⃣  PyTorch Version: {torch.__version__}")
+        print(f"2️⃣  CUDA Available: {torch.cuda.is_available()}")
+
+        if not torch.cuda.is_available():
+            print("\n❌ CUDA is NOT available in PyTorch")
+            print("   This installation will NOT work with BioNeMo GPU models")
+            print("   Please reinstall PyTorch with CUDA support (run Cell 2.3)")
+            print("=" * 80)
+            return False
+
+        # CUDA is available - continue with detailed checks
+        print(f"3️⃣  CUDA Version (PyTorch build): {torch.version.cuda}")
+        print(f"4️⃣  cuDNN Version: {torch.backends.cudnn.version()}")
+        print(f"5️⃣  cuDNN Enabled: {torch.backends.cudnn.enabled}")
+        print(f"6️⃣  Number of GPUs: {torch.cuda.device_count()}")
+
+        # GPU details
+        print(f"\n📊 GPU Details:")
+        for i in range(torch.cuda.device_count()):
+            gpu_name = torch.cuda.get_device_name(i)
+            gpu_capability = torch.cuda.get_device_capability(i)
+            mem_total = torch.cuda.get_device_properties(i).total_memory / 1024**3
+            
+            print(f"\n   GPU {i}:")
+            print(f"   - Name: {gpu_name}")
+            print(f"   - Compute Capability: {gpu_capability[0]}.{gpu_capability[1]}")
+            print(f"   - Total Memory: {mem_total:.2f} GB")
+
+        # Test GPU computation
+        print(f"\n🔬 Testing GPU Computation:")
+        try:
+            # Create tensors on GPU
+            x = torch.randn(1000, 1000, device='cuda')
+            y = torch.randn(1000, 1000, device='cuda')
+
+            # Perform computation
+            z = torch.matmul(x, y)
+            torch.cuda.synchronize()  # Wait for computation to finish
+
+            print(f"   ✅ GPU tensor creation: SUCCESS")
+            print(f"   ✅ GPU matrix multiplication: SUCCESS")
+            print(f"   ✅ Result tensor shape: {z.shape}")
+            print(f"   ✅ Result tensor device: {z.device}")
+
+            # Test mixed precision (important for BioNeMo)
+            with torch.cuda.amp.autocast():
+                z_amp = torch.matmul(x, y)
+                torch.cuda.synchronize()
+            
+            print(f"   ✅ Mixed precision (AMP) computation: SUCCESS")
+
+            # Clean up
+            del x, y, z, z_amp
+            torch.cuda.empty_cache()
+
+        except Exception as e:
+            print(f"   ❌ GPU computation test FAILED: {e}")
+            return False
+
+        # BioNeMo-specific compatibility checks
+        print(f"\n🧬 BioNeMo Compatibility Checks:")
+
+        # Check for bfloat16 support (Ampere+ GPUs)
+        compute_cap = torch.cuda.get_device_capability(0)
+        if compute_cap[0] >= 8:
+            print(f"   ✅ bfloat16 precision: SUPPORTED (Compute {compute_cap[0]}.{compute_cap[1]})")
+            
+            # Test bfloat16
+            try:
+                x_bf16 = torch.randn(100, 100, device='cuda', dtype=torch.bfloat16)
+                y_bf16 = torch.randn(100, 100, device='cuda', dtype=torch.bfloat16)
+                z_bf16 = torch.matmul(x_bf16, y_bf16)
+                print(f"      ✅ bfloat16 computation test: PASSED")
+                del x_bf16, y_bf16, z_bf16
+            except Exception as e:
+                print(f"      ⚠️  bfloat16 computation test: {e}")
+        else:
+            print(f"   ⚠️  bfloat16 precision: LIMITED (Compute {compute_cap[0]}.{compute_cap[1]} < 8.0)")
+            print(f"      Note: bfloat16 performs best on Ampere+ GPUs (A100, A10, etc.)")
+
+        # Check for FP8 support (Hopper GPUs)
+        if compute_cap[0] >= 9:
+            print(f"   ✅ FP8 precision: SUPPORTED (Hopper GPU)")
+        elif compute_cap[0] >= 8:
+            print(f"   ℹ️  FP8 precision: Requires Hopper GPU (H100, H200)")
+        else:
+            print(f"   ℹ️  FP8 precision: Not available on this GPU generation")
+
+        # Check Tensor Cores
+        if compute_cap[0] >= 7:
+            print(f"   ✅ Tensor Cores: AVAILABLE")
+        else:
+            print(f"   ⚠️  Tensor Cores: NOT AVAILABLE")
+
+        print("\n" + "=" * 80)
+        print("✅ PyTorch + CUDA verification PASSED")
+        print("   Your environment is ready for BioNeMo Framework!")
+        print("=" * 80)
+
+        return True
+
+    except Exception as e:
+        print(f"\n❌ Verification failed with error: {e}")
+        print("=" * 80)
+        return False
+
+# Run verification
+verification_passed = verify_pytorch_cuda_for_bionemo()
+
+if verification_passed:
+    print("\n🎉 SUCCESS: Ready to use BioNeMo Framework with GPU acceleration")
+else:
+    print("\n⚠️  ISSUES DETECTED: Please review the output above and address any errors")
+
+# COMMAND ----------
+# MAGIC %md
+# MAGIC ## 📋 Cell 2.5: PyTorch Installation Summary and Next Steps (NEW!)
+# MAGIC
+# MAGIC Provides a summary of the PyTorch installation status and next steps
+# MAGIC for using BioNeMo Framework on Databricks.
+
+# COMMAND ----------
+print("=" * 80)
+print("📋 PYTORCH INSTALLATION SUMMARY FOR BIONEMO")
+print("=" * 80)
+
+# Check final status
+try:
+    import torch
+    pytorch_installed = True
+    pytorch_version = torch.__version__
+    cuda_available = torch.cuda.is_available()
+    cuda_version = torch.version.cuda if cuda_available else "N/A"
+    gpu_count = torch.cuda.device_count() if cuda_available else 0
+    
+    if cuda_available and gpu_count > 0:
+        gpu_name = torch.cuda.get_device_name(0)
+        compute_cap = torch.cuda.get_device_capability(0)
+except:
+    pytorch_installed = False
+    pytorch_version = "Not installed"
+    cuda_available = False
+    cuda_version = "N/A"
+    gpu_count = 0
+    gpu_name = "N/A"
+    compute_cap = (0, 0)
+
+print(f"\n📊 Current Status:")
+print(f"   PyTorch Installation: {'✅ INSTALLED' if pytorch_installed else '❌ NOT INSTALLED'}")
+print(f"   PyTorch Version: {pytorch_version}")
+print(f"   CUDA Support: {'✅ ENABLED' if cuda_available else '❌ DISABLED'}")
+print(f"   CUDA Version: {cuda_version}")
+print(f"   GPUs Detected: {gpu_count}")
+
+if cuda_available and gpu_count > 0:
+    print(f"   Primary GPU: {gpu_name}")
+    print(f"   Compute Capability: {compute_cap[0]}.{compute_cap[1]}")
+
+print("\n" + "=" * 80)
+
+if pytorch_installed and cuda_available:
+    print("✅ READY FOR BIONEMO FRAMEWORK")
+    print("=" * 80)
+    print("\n🎯 Next Steps:")
+    print("\n1️⃣  Your Databricks notebook is ready for BioNeMo Framework")
+    print("\n2️⃣  Installation Options:")
+    print("   a) BioNeMo Core Packages (pip installable):")
+    print("      %pip install bionemo-core")
+    print("      %pip install bionemo-scdl  # Single cell data loader")
+    print("      %pip install bionemo-moco  # Molecular co-design")
+    print("\n   b) BioNeMo Framework Container (recommended):")
+    print("      - Configure Databricks Container Services")
+    print("      - Pull: nvcr.io/nvidia/clara/bionemo-framework:latest")
+    print("\n3️⃣  Resources:")
+    print("   - BioNeMo GitHub: https://github.com/NVIDIA/bionemo-framework")
+    print("   - Documentation: https://nvidia.github.io/bionemo-framework/")
+    print("   - PyPI Packages: https://pypi.org/search/?q=bionemo")
+    
+    print("\n4️⃣  Continue to Cell 3 to test PyTorch Lightning compatibility")
+else:
+    print("⚠️  PYTORCH INSTALLATION INCOMPLETE")
+    print("=" * 80)
+    print("\n❌ Issues Detected:")
+    
+    if not pytorch_installed:
+        print("   • PyTorch is not installed")
+        print("     → Go back and run Cell 2.3 (Install PyTorch)")
+    elif not cuda_available:
+        print("   • PyTorch is installed but CUDA is not available")
+        print("     → Verify your Databricks cluster has GPU instances")
+        print("     → Check cluster driver type (should be GPU-enabled like g5.xlarge)")
+        print("     → Run Cell 2.3 to reinstall with CUDA support")
+    
+    print("\n💡 Troubleshooting:")
+    print("   1. Verify your Databricks cluster has GPU instances")
+    print("   2. Check cluster driver type includes GPU support")
+    print("   3. Ensure NVIDIA drivers are installed (check with: nvidia-smi)")
+    print("   4. Try restarting the cluster")
+    print("   5. Review CUDA version compatibility with PyTorch")
+    print("   6. Visit: https://pytorch.org/get-started/locally/")
+
+print("\n" + "=" * 80)
+
+# COMMAND ----------
+# MAGIC %md
+# MAGIC ## ⚡ Cell 3: PyTorch Lightning GPU Test
 # MAGIC
 # MAGIC Tests PyTorch Lightning compatibility with GPU acceleration.
 # MAGIC This is critical for BioNeMo recipes which use Lightning for training.
@@ -573,7 +1041,7 @@ display(df_lightning)
 
 # COMMAND ----------
 # MAGIC %md
-# MAGIC ## 🔥 Cell 4: CUDA Functional Testing (NEW!)
+# MAGIC ## 🔥 Cell 4: CUDA Functional Testing
 # MAGIC
 # MAGIC Performs actual CUDA operations to validate GPU functionality beyond availability checks.
 # MAGIC This cell tests real computational workloads that BioNeMo training will depend on.
@@ -1341,7 +1809,7 @@ display(df_cuda_functional)
 
 # COMMAND ----------
 # MAGIC %md
-# MAGIC ## 🔗 Cell 5: BioNeMo Dependency Stack Validation (NEW!)
+# MAGIC ## 🔗 Cell 5: BioNeMo Dependency Stack Validation
 # MAGIC
 # MAGIC Comprehensive validation of the complete BioNeMo dependency stack for pip installation.
 # MAGIC This cell tests the entire dependency chain with automatic installation and version compatibility.
@@ -1963,7 +2431,7 @@ display(df_dependency)
 
 # COMMAND ----------
 # MAGIC %md
-# MAGIC ## 🧬 Cell 6: BioNeMo Core Package Availability (NEW!)
+# MAGIC ## 🧬 Cell 6: BioNeMo Core Package Availability
 # MAGIC
 # MAGIC Tests availability and imports of BioNeMo Framework packages.
 # MAGIC
@@ -2394,7 +2862,12 @@ if final_report["total_warnings"] > 0:
     for section_name, section_data in final_report["validation_sections"].items():
         if section_data.get("warnings"):
             for warning in section_data["warnings"]:
-                print(f"   • {warning['message']}")
+                # Handle both dictionary warnings and string warnings
+                if isinstance(warning, dict):
+                    warning_msg = warning.get('message', str(warning))
+                else:
+                    warning_msg = str(warning)
+                print(f"   • {warning_msg}")
 
 print("\n" + "=" * 80)
 print("📚 REFERENCES")
