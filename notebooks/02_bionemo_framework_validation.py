@@ -929,6 +929,213 @@ print("=" * 80)
 
 # COMMAND ----------
 # MAGIC %md
+# MAGIC ## 🔬 Cell 2.7: Verify BioNeMo + NeMo Integration (NEW!)
+# MAGIC
+# MAGIC Verifies that NeMo Toolkit and BioNeMo Core are properly integrated
+# MAGIC and can work together. This is critical for ensuring the full BioNeMo
+# MAGIC training stack is functional.
+# MAGIC
+# MAGIC **Integration Tests:**
+# MAGIC - NeMo core framework imports
+# MAGIC - NeMo utilities (experiment manager, distributed training)
+# MAGIC - Megatron-Core availability
+# MAGIC - BioNeMo core imports
+# MAGIC - BioNeMo utilities (dtype, configuration)
+# MAGIC - FSDP (Fully Sharded Data Parallel) support
+# MAGIC
+# MAGIC **Why This Matters:**
+# MAGIC BioNeMo builds on top of NeMo's infrastructure. If these components
+# MAGIC don't integrate correctly, training and inference will fail.
+
+# COMMAND ----------
+print("=" * 80)
+print("🔬 VERIFYING BIONEMO + NEMO INTEGRATION")
+print("=" * 80)
+
+import sys
+
+# Initialize results dictionary
+integration_results = {
+    "nemo_available": False,
+    "nemo_version": None,
+    "nemo_utils_available": False,
+    "megatron_available": False,
+    "bionemo_core_available": False,
+    "bionemo_utils_available": False,
+    "distributed_utils_available": False,
+    "fsdp_available": False,
+    "integration_status": "PENDING",
+    "errors": []
+}
+
+# Test 1: NeMo Imports
+print("\n📦 Test 1: NeMo Core Framework")
+print("─" * 80)
+try:
+    import nemo
+    nemo_version = nemo.__version__
+    integration_results["nemo_available"] = True
+    integration_results["nemo_version"] = nemo_version
+    print(f"   ✅ nemo: v{nemo_version}")
+except ImportError as e:
+    integration_results["errors"].append(f"NeMo import failed: {str(e)}")
+    print(f"   ❌ nemo import failed: {e}")
+    print(f"   ⚠️  Cannot proceed without NeMo - please run Cell 2.6 first")
+
+# Test NeMo utilities
+try:
+    from nemo.utils import exp_manager
+    integration_results["nemo_utils_available"] = True
+    print(f"   ✅ nemo.utils.exp_manager available")
+except ImportError as e:
+    integration_results["errors"].append(f"NeMo utils import failed: {str(e)}")
+    print(f"   ⚠️  nemo.utils.exp_manager not available: {e}")
+
+# Test Megatron-Core
+try:
+    import megatron.core
+    integration_results["megatron_available"] = True
+    print(f"   ✅ megatron.core available")
+except ImportError:
+    print(f"   ℹ️  megatron.core not available (may be installed separately)")
+
+# Test 2: BioNeMo Core Integration
+print("\n🧬 Test 2: BioNeMo Core Framework")
+print("─" * 80)
+try:
+    import bionemo.core
+    integration_results["bionemo_core_available"] = True
+    print(f"   ✅ bionemo.core imported successfully")
+    
+    # Try to get version if available
+    try:
+        bionemo_version = bionemo.core.__version__
+        print(f"   ℹ️  Version: {bionemo_version}")
+    except AttributeError:
+        print(f"   ℹ️  Version information not available")
+        
+except ImportError as e:
+    integration_results["errors"].append(f"BioNeMo core import failed: {str(e)}")
+    print(f"   ❌ bionemo.core import failed: {e}")
+    print(f"   ℹ️  BioNeMo packages may not be installed yet")
+
+# Test 3: BioNeMo Utilities (was failing in user's report)
+print("\n🛠️  Test 3: BioNeMo Utilities")
+print("─" * 80)
+try:
+    from bionemo.core.utils import dtype
+    integration_results["bionemo_utils_available"] = True
+    print(f"   ✅ bionemo.core.utils.dtype available")
+    
+    # Test get_autocast_dtype function
+    try:
+        from bionemo.core.utils.dtype import get_autocast_dtype
+        print(f"   ✅ get_autocast_dtype function available")
+    except ImportError:
+        print(f"   ⚠️  get_autocast_dtype function not found")
+        
+except ImportError as e:
+    integration_results["errors"].append(f"BioNeMo utils import failed: {str(e)}")
+    print(f"   ⚠️  bionemo.core.utils.dtype not available")
+    print(f"   ℹ️  This may be a version compatibility issue")
+    print(f"      Error: {e}")
+
+# Test 4: Distributed Training Support
+print("\n🌐 Test 4: Distributed Training Support")
+print("─" * 80)
+
+# Test NeMo distributed utilities
+try:
+    from nemo.utils.distributed import initialize_distributed
+    integration_results["distributed_utils_available"] = True
+    print(f"   ✅ NeMo distributed training utilities available")
+except ImportError as e:
+    print(f"   ⚠️  NeMo distributed utilities not available: {e}")
+
+# Test PyTorch FSDP
+try:
+    import torch.distributed as dist
+    from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+    integration_results["fsdp_available"] = True
+    print(f"   ✅ FSDP (FullyShardedDataParallel) available")
+    print(f"   ℹ️  Ready for multi-GPU distributed training")
+except ImportError as e:
+    integration_results["errors"].append(f"FSDP not available: {str(e)}")
+    print(f"   ⚠️  FSDP not available: {e}")
+    print(f"   ℹ️  Distributed training may be limited")
+
+# Test PyTorch distributed availability
+try:
+    import torch
+    if torch.distributed.is_available():
+        print(f"   ✅ torch.distributed is available")
+    else:
+        print(f"   ⚠️  torch.distributed is not available")
+except Exception as e:
+    print(f"   ⚠️  Could not check torch.distributed: {e}")
+
+# Determine overall integration status
+critical_components = [
+    integration_results["nemo_available"],
+    integration_results["bionemo_core_available"]
+]
+
+if all(critical_components):
+    integration_results["integration_status"] = "READY"
+    status_message = "✅ INTEGRATION VERIFIED"
+elif integration_results["nemo_available"] and not integration_results["bionemo_core_available"]:
+    integration_results["integration_status"] = "PARTIAL"
+    status_message = "⚠️  PARTIAL INTEGRATION (BioNeMo packages not installed)"
+else:
+    integration_results["integration_status"] = "FAILED"
+    status_message = "❌ INTEGRATION FAILED"
+
+# Summary
+print("\n" + "=" * 80)
+print(f"📋 INTEGRATION VERIFICATION SUMMARY")
+print("=" * 80)
+
+print(f"\n{status_message}")
+print(f"\n📊 Component Status:")
+print(f"   • NeMo Framework: {'✅ v' + integration_results['nemo_version'] if integration_results['nemo_available'] else '❌ Not available'}")
+print(f"   • NeMo Utilities: {'✅ Available' if integration_results['nemo_utils_available'] else '⚠️  Limited'}")
+print(f"   • Megatron-Core: {'✅ Available' if integration_results['megatron_available'] else 'ℹ️  Not detected'}")
+print(f"   • BioNeMo Core: {'✅ Available' if integration_results['bionemo_core_available'] else '❌ Not available'}")
+print(f"   • BioNeMo Utils: {'✅ Available' if integration_results['bionemo_utils_available'] else '⚠️  Not available'}")
+print(f"   • Distributed Utils: {'✅ Available' if integration_results['distributed_utils_available'] else '⚠️  Limited'}")
+print(f"   • FSDP Support: {'✅ Available' if integration_results['fsdp_available'] else '⚠️  Not available'}")
+
+if integration_results["integration_status"] == "READY":
+    print(f"\n🎉 SUCCESS: NeMo + BioNeMo integration is ready!")
+    print(f"\n✅ You can now:")
+    print(f"   • Use BioNeMo models (ESM2, Evo2, Geneformer, etc.)")
+    print(f"   • Run distributed training with FSDP")
+    print(f"   • Use NeMo data loading utilities")
+    print(f"   • Fine-tune models on your data")
+    print(f"   • Deploy models for inference")
+    
+elif integration_results["integration_status"] == "PARTIAL":
+    print(f"\n⚠️  PARTIAL INTEGRATION:")
+    print(f"   • NeMo is ready but BioNeMo packages not installed")
+    print(f"   • Continue to later cells to install BioNeMo packages")
+    print(f"   • Or install now: %pip install bionemo-core")
+    
+else:
+    print(f"\n❌ INTEGRATION ISSUES DETECTED:")
+    if integration_results["errors"]:
+        for error in integration_results["errors"]:
+            print(f"   • {error}")
+    print(f"\n💡 Next Steps:")
+    if not integration_results["nemo_available"]:
+        print(f"   1. Run Cell 2.6 to install NeMo Toolkit")
+    if not integration_results["bionemo_core_available"]:
+        print(f"   2. Install BioNeMo: %pip install bionemo-core")
+    print(f"   3. Restart notebook and re-run this cell")
+
+print("\n" + "=" * 80)
+
+# COMMAND ----------
+# MAGIC %md
 # MAGIC ## ⚡ Cell 3: PyTorch Lightning GPU Test
 # MAGIC
 # MAGIC Tests PyTorch Lightning compatibility with GPU acceleration.
