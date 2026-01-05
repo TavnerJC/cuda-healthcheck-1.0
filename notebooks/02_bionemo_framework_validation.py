@@ -814,7 +814,8 @@ def install_nemo_toolkit():
         try:
             # Use %pip for Databricks compatibility
             try:
-                get_ipython().run_line_magic('pip', 'install nemo-toolkit[all]>=1.22.0 --quiet')
+                # Remove --quiet to show installation progress
+                get_ipython().run_line_magic('pip', 'install nemo-toolkit[all]>=1.22.0')
                 print("\n" + "=" * 80)
                 print("   ✅ NeMo Toolkit installation completed!")
                 
