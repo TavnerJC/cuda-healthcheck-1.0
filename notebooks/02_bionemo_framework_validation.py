@@ -139,12 +139,8 @@ try:
     print(f"   Is GPU Runtime: {runtime_info['is_gpu_runtime']}")
     print(f"   Expected CUDA: {runtime_info['cuda_version']}")
     
-    if not runtime_info['is_gpu_runtime']:
-        cuda_validation_results["blockers"].append({
-            "check": "gpu_runtime",
-            "message": "Not running on a GPU-enabled runtime",
-            "severity": "BLOCKER"
-        })
+    # Note: We'll verify GPU availability with actual hardware detection below
+    # Don't block on runtime detection alone as it may have false negatives
     
     # 2. Detect GPU Hardware
     print("\n🎮 Detecting GPU Hardware...")
@@ -191,7 +187,7 @@ try:
             "severity": "BLOCKER"
         })
     
-    # 4. Check PyTorch Installation
+    # 4. Check PyTorch Installation (Informational Only - will be installed in Cell 2.3)
     print("\n🐍 Checking PyTorch Installation...")
     pytorch_lib = next((lib for lib in env.libraries if lib.name.lower() == "torch"), None)
     
@@ -214,11 +210,15 @@ try:
                 "severity": "WARNING"
             })
     else:
-        cuda_validation_results["blockers"].append({
-            "check": "pytorch_installation",
-            "message": "PyTorch not installed",
-            "severity": "BLOCKER"
-        })
+        # Not a blocker - PyTorch will be installed in Cell 2.3
+        print(f"   PyTorch: Not currently installed")
+        print(f"   ℹ️  Note: PyTorch will be installed automatically in Cell 2.3")
+        cuda_validation_results["pytorch_info"] = {
+            "version": "Not installed",
+            "cuda_version": "N/A",
+            "is_compatible": False,
+            "will_install": True
+        }
     
     # Store full environment
     cuda_validation_results["cuda_environment"] = cuda_env_summary
@@ -253,18 +253,18 @@ print("=" * 80)
 import pandas as pd
 
 summary_data = {
-    "Check": ["Databricks Runtime", "GPU Detection", "CUDA Runtime", "PyTorch"],
+    "Check": ["Databricks Runtime", "GPU Detection", "CUDA Runtime", "PyTorch (Info)"],
     "Status": [
-        "✅ PASS" if runtime_info['is_gpu_runtime'] else "❌ FAIL",
+        f"✅ Runtime {runtime_info['runtime_version']}",
         f"✅ PASS ({gpu_count} GPU)" if gpu_count > 0 else "❌ FAIL",
         "✅ PASS" if env.cuda_runtime_version != "Not available" else "❌ FAIL",
-        "✅ PASS" if pytorch_lib and pytorch_lib.version != "Not installed" else "❌ FAIL"
+        "ℹ️ Will install in Cell 2.3" if not (pytorch_lib and pytorch_lib.version != "Not installed") else "✅ Already installed"
     ],
     "Details": [
-        f"Runtime {runtime_info['runtime_version']}, CUDA {runtime_info['cuda_version']}",
+        f"ML Runtime: {runtime_info['is_ml_runtime']}, CUDA {runtime_info['cuda_version']}",
         gpu_info['gpus'][0]['name'] if gpu_count > 0 and 'gpus' in gpu_info else "No GPU",
         f"Runtime {env.cuda_runtime_version}, Driver {env.cuda_driver_version}",
-        f"v{pytorch_lib.version} (cu{pytorch_lib.cuda_version})" if pytorch_lib and pytorch_lib.version != "Not installed" else "Not installed"
+        f"v{pytorch_lib.version} (cu{pytorch_lib.cuda_version})" if pytorch_lib and pytorch_lib.version != "Not installed" else "Will be installed automatically"
     ]
 }
 
@@ -2699,9 +2699,12 @@ final_report = {
     "recommendations": []
 }
 
-# Count blockers and warnings
+# Count blockers and warnings (exclude PyTorch installation blocker - will be installed in Cell 2.3)
 for section in final_report["validation_sections"].values():
-    final_report["total_blockers"] += len(section.get("blockers", []))
+    # Filter out pytorch_installation blocker from CUDA environment section
+    blockers = section.get("blockers", [])
+    actual_blockers = [b for b in blockers if b.get("check") != "pytorch_installation"]
+    final_report["total_blockers"] += len(actual_blockers)
     final_report["total_warnings"] += len(section.get("warnings", []))
 
 # Determine overall status
@@ -2717,14 +2720,26 @@ print("\n🎯 VALIDATION SUMMARY:")
 print("─" * 80)
 
 # Section 1: CUDA Environment
-cuda_status = "✅ PASS" if cuda_validation_results["status"] == "PASSED" else "❌ FAIL"
+# Updated logic: Only fail if GPU or CUDA runtime are missing
+# PyTorch absence is not a blocker since we install it in Cell 2.3
+has_gpu = cuda_validation_results['gpu_info']['gpu_count'] > 0 if cuda_validation_results.get('gpu_info') else False
+has_cuda = cuda_validation_results.get('cuda_environment', {}).get('cuda_runtime') != "Not available"
+pytorch_status = cuda_validation_results.get('pytorch_info', {}).get('version', 'Not installed')
+
+cuda_status = "✅ PASS" if (has_gpu and has_cuda) else "❌ FAIL"
 print(f"   1. CUDA Environment: {cuda_status}")
-if cuda_validation_results["status"] == "PASSED":
+if has_gpu and has_cuda:
     print(f"      • Runtime: {cuda_validation_results['databricks_runtime']['runtime_version']}")
     print(f"      • GPUs: {cuda_validation_results['gpu_info']['gpu_count']}")
-    print(f"      • PyTorch: v{cuda_validation_results['pytorch_info']['version']}")
+    if pytorch_status != "Not installed":
+        print(f"      • PyTorch: v{pytorch_status}")
+    else:
+        print(f"      • PyTorch: ℹ️  Will be installed in Cell 2.3")
 else:
-    print(f"      • Blockers: {len(cuda_validation_results['blockers'])}")
+    # Only count actual blockers (GPU/CUDA missing), not PyTorch
+    actual_blockers = [b for b in cuda_validation_results.get('blockers', []) 
+                      if b.get('check') != 'pytorch_installation']
+    print(f"      • Blockers: {len(actual_blockers)}")
 
 # Section 2: PyTorch Lightning
 lightning_status = "✅ PASS" if lightning_test_results["status"] == "PASSED" else "❌ FAIL"
@@ -2794,9 +2809,13 @@ if final_report["total_blockers"] > 0:
     print(f"\n🚨 BLOCKERS FOUND:")
     for section_name, section_data in final_report["validation_sections"].items():
         if section_data.get("blockers"):
-            print(f"\n   {section_name.replace('_', ' ').title()}:")
-            for blocker in section_data["blockers"]:
-                print(f"      • {blocker['message']}")
+            # Filter out pytorch_installation blocker
+            actual_blockers = [b for b in section_data["blockers"] 
+                             if b.get("check") != "pytorch_installation"]
+            if actual_blockers:
+                print(f"\n   {section_name.replace('_', ' ').title()}:")
+                for blocker in actual_blockers:
+                    print(f"      • {blocker['message']}")
     
     # Add recommendations
     final_report["recommendations"].append("Fix all blockers before proceeding with BioNeMo installation")
