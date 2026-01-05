@@ -741,6 +741,194 @@ print("\n" + "=" * 80)
 
 # COMMAND ----------
 # MAGIC %md
+# MAGIC ## 🚀 Cell 2.6: Install NeMo Toolkit (Required for BioNeMo) (NEW!)
+# MAGIC
+# MAGIC Installs NVIDIA NeMo Toolkit, which is a **critical dependency** for BioNeMo Framework.
+# MAGIC BioNeMo builds on top of NeMo's distributed training infrastructure, model architectures,
+# MAGIC and data loading capabilities.
+# MAGIC
+# MAGIC **What NeMo Provides:**
+# MAGIC - Megatron-Core for distributed training
+# MAGIC - Model parallelism strategies (tensor, pipeline, data)
+# MAGIC - Mixed precision training utilities
+# MAGIC - Checkpoint management
+# MAGIC - Data loading infrastructure
+# MAGIC
+# MAGIC **Installation:**
+# MAGIC - Package: `nemo-toolkit[all]>=1.22.0`
+# MAGIC - Includes: All NeMo modules (ASR, NLP, TTS, Vision)
+# MAGIC - Required for: BioNeMo Framework to function
+# MAGIC
+# MAGIC **Note:** This cell will skip installation if NeMo is already present.
+
+# COMMAND ----------
+print("=" * 80)
+print("🚀 NEMO TOOLKIT INSTALLATION (Required for BioNeMo Framework)")
+print("=" * 80)
+
+import subprocess
+import sys
+
+def install_nemo_toolkit():
+    """
+    Install NVIDIA NeMo Toolkit with all optional dependencies.
+    This is REQUIRED for BioNeMo Framework to function.
+    
+    Returns:
+        tuple: (success: bool, version: str, megatron_available: bool)
+    """
+    print("\n📦 Checking NeMo Toolkit Installation...")
+    print("─" * 80)
+    
+    try:
+        # Check if NeMo is already installed
+        import nemo
+        nemo_version = nemo.__version__
+        print(f"   ✅ NeMo Toolkit already installed")
+        print(f"   ℹ️  Version: {nemo_version}")
+        
+        # Check for Megatron-Core
+        megatron_available = False
+        try:
+            import megatron.core
+            megatron_available = True
+            print(f"   ✅ Megatron-Core available")
+        except ImportError:
+            print(f"   ⚠️  Megatron-Core not detected (may be available as submodule)")
+        
+        return True, nemo_version, megatron_available
+        
+    except ImportError:
+        print(f"   ⚠️  NeMo Toolkit not found - installation required")
+        print("\n📥 Installing NeMo Toolkit...")
+        print("─" * 80)
+        print("   Package: nemo-toolkit[all]>=1.22.0")
+        print("   Includes:")
+        print("      • NeMo core framework")
+        print("      • Megatron-Core (distributed training)")
+        print("      • ASR, NLP, TTS, and Vision modules")
+        print("      • All optimization features")
+        print("\n   ⏳ This may take 3-5 minutes - please wait...")
+        print("=" * 80)
+        
+        try:
+            # Use %pip for Databricks compatibility
+            try:
+                get_ipython().run_line_magic('pip', 'install nemo-toolkit[all]>=1.22.0 --quiet')
+                print("\n" + "=" * 80)
+                print("   ✅ NeMo Toolkit installation completed!")
+                
+                # Verify installation
+                import nemo
+                nemo_version = nemo.__version__
+                print(f"   ℹ️  Installed Version: {nemo_version}")
+                
+                # Check for Megatron-Core
+                megatron_available = False
+                try:
+                    import megatron.core
+                    megatron_available = True
+                    print(f"   ✅ Megatron-Core available")
+                except ImportError:
+                    print(f"   ⚠️  Megatron-Core not detected (may require restart)")
+                
+                # Restart Python to ensure packages are loaded
+                print("\n   ⚠️  IMPORTANT: Restarting Python kernel...")
+                print("      This ensures NeMo is properly loaded in the environment.")
+                
+                try:
+                    dbutils.library.restartPython()
+                except:
+                    print("      Note: Auto-restart not available. Please restart notebook if needed.")
+                
+                return True, nemo_version, megatron_available
+                
+            except NameError:
+                # Fallback to subprocess if not in Databricks/Jupyter
+                result = subprocess.run(
+                    [sys.executable, "-m", "pip", "install", "nemo-toolkit[all]>=1.22.0", "-q"],
+                    capture_output=True,
+                    text=True,
+                    timeout=600
+                )
+                
+                if result.returncode == 0:
+                    print("\n" + "=" * 80)
+                    print("   ✅ NeMo Toolkit installation completed!")
+                    
+                    # Verify installation
+                    import nemo
+                    nemo_version = nemo.__version__
+                    print(f"   ℹ️  Installed Version: {nemo_version}")
+                    
+                    # Check for Megatron-Core
+                    megatron_available = False
+                    try:
+                        import megatron.core
+                        megatron_available = True
+                        print(f"   ✅ Megatron-Core available")
+                    except ImportError:
+                        print(f"   ⚠️  Megatron-Core not detected")
+                    
+                    return True, nemo_version, megatron_available
+                else:
+                    print("\n" + "=" * 80)
+                    print("   ❌ Installation failed!")
+                    print("   Error output:")
+                    print(result.stderr[:500])  # Show first 500 chars
+                    return False, None, False
+                    
+        except subprocess.TimeoutExpired:
+            print("\n" + "=" * 80)
+            print("   ❌ Installation timed out (>10 minutes)")
+            print("\n   💡 Manual Installation:")
+            print("      Run in a new cell: %pip install nemo-toolkit[all]>=1.22.0")
+            return False, None, False
+            
+        except Exception as e:
+            print("\n" + "=" * 80)
+            print(f"   ❌ Installation error: {str(e)}")
+            print("\n   💡 Manual Installation:")
+            print("      Run in a new cell: %pip install nemo-toolkit[all]>=1.22.0")
+            return False, None, False
+
+# Run installation
+nemo_success, nemo_version, megatron_available = install_nemo_toolkit()
+
+# Summary
+print("\n" + "=" * 80)
+print("📋 NEMO TOOLKIT INSTALLATION SUMMARY")
+print("=" * 80)
+
+if nemo_success:
+    print("\n✅ NeMo Toolkit is ready for BioNeMo Framework")
+    print(f"   • Version: {nemo_version}")
+    print(f"   • Megatron-Core: {'✅ Available' if megatron_available else '⚠️  Not detected'}")
+    print("\n🎯 Next Steps:")
+    print("   1. Continue to Cell 3 for PyTorch Lightning tests")
+    print("   2. NeMo provides the foundation for BioNeMo training")
+    print("\n📚 Resources:")
+    print("   • NeMo GitHub: https://github.com/NVIDIA/NeMo")
+    print("   • NeMo Docs: https://docs.nvidia.com/nemo-framework/")
+    print("   • PyPI: https://pypi.org/project/nemo-toolkit/")
+else:
+    print("\n❌ NeMo Toolkit installation failed")
+    print("   ⚠️  WARNING: You cannot proceed without NeMo installed")
+    print("\n💡 Troubleshooting:")
+    print("   1. Check internet connectivity")
+    print("   2. Verify pip is working: !pip --version")
+    print("   3. Try manual installation:")
+    print("      %pip install nemo-toolkit[all]>=1.22.0")
+    print("   4. Check for conflicts:")
+    print("      %pip list | grep -i nemo")
+    print("\n📚 Resources:")
+    print("   • NeMo GitHub: https://github.com/NVIDIA/NeMo")
+    print("   • Installation Guide: https://github.com/NVIDIA/NeMo#installation")
+
+print("=" * 80)
+
+# COMMAND ----------
+# MAGIC %md
 # MAGIC ## ⚡ Cell 3: PyTorch Lightning GPU Test
 # MAGIC
 # MAGIC Tests PyTorch Lightning compatibility with GPU acceleration.
