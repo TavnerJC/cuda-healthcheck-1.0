@@ -836,11 +836,20 @@ def install_nemo_toolkit():
                 # Restart Python to ensure packages are loaded
                 print("\n   ⚠️  IMPORTANT: Restarting Python kernel...")
                 print("      This ensures NeMo is properly loaded in the environment.")
+                print("      Note: After restart, you may see torchvision import errors.")
+                print("      This is normal - they'll be fixed after the restart completes.")
                 
                 try:
                     dbutils.library.restartPython()
-                except:
-                    print("      Note: Auto-restart not available. Please restart notebook if needed.")
+                    # Code after this won't execute - kernel restarts
+                except NameError as e:
+                    print(f"      ⚠️  dbutils not available: {e}")
+                    print("      Please manually restart the Python kernel:")
+                    print("         Cluster → Libraries → Restart Python")
+                except Exception as e:
+                    print(f"      ⚠️  Restart failed: {e}")
+                    print("      Please manually restart the Python kernel:")
+                    print("         Cluster → Libraries → Restart Python")
                 
                 return True, nemo_version, megatron_available
                 
